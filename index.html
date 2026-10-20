@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Three.js ARAM - Howling Abyss 3D</title>
+    <link rel="stylesheet" href="/src/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/node_modules/three/build/three.module.js",
+          "three/addons/": "/node_modules/three/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Floating Damage Layer -->
+    <div id="damage-layer"></div>
+
+    <!-- Top Header & Instructions -->
+    <div class="top-header">
+      <div class="title-badge">⚡ HOWLING ABYSS - 3D ARAM BATTLE ⚡</div>
+      <div class="controls-hint">
+        <span>Chuột phải:</span> Di chuyển | 
+        <span>Q:</span> Bắn băng | 
+        <span>W:</span> Vòng bão | 
+        <span>E:</span> Lướt | 
+        <span>R:</span> Đại bác Laser | 
+        <span>D:</span> Cầu tuyết (Tái kích hoạt để lướt tới) | 
+        <span>Space:</span> Khóa góc nhìn
+      </div>
+    </div>
+
+    <!-- League MOBA HUD at the bottom -->
+    <div class="moba-hud">
+      <!-- Avatar -->
+      <div class="avatar-frame" id="avatar-frame">
+        <span id="avatar-icon">🌪️</span>
+        <div class="level-badge" id="hud-level">6</div>
+      </div>
+
+      <!-- HUD Buttons Column -->
+      <div class="hud-buttons-col">
+        <button id="btn-open-customizer" class="btn-customize-skills" title="Nhấp để tùy chọn bộ kỹ năng cho tướng">
+          ⚡ TÙY BIẾN CHIÊU
+        </button>
+        <button id="btn-switch-hero" class="btn-switch-hero" title="Đổi tướng 3D (Soldier / Ninja / Fox / Ahri / Robot)">
+          🎭 ĐỔI TƯỚNG 3D
+        </button>
+        <button id="btn-upload-model" class="btn-upload-model" title="Tải file .glb từ Sketchfab về và chọn để nạp vào game!">
+          📥 NẠP 3D SKETCHFAB
+        </button>
+        <input type="file" id="input-model-file" accept=".glb,.gltf" style="display: none;" />
+      </div>
+
+      <!-- Center Bars & Skills -->
+      <div class="center-hud">
+        <!-- HP / MP Bars -->
+        <div class="resource-bars">
+          <div class="bar-wrapper">
+            <div class="bar-fill hp" id="hud-hp-bar"></div>
+            <div class="bar-text" id="hud-hp-text">1200 / 1200</div>
+          </div>
+          <div class="bar-wrapper">
+            <div class="bar-fill mp" id="hud-mp-bar"></div>
+            <div class="bar-text" id="hud-mp-text">600 / 600</div>
+          </div>
+        </div>
+
+        <!-- Skills: Q W E R and D (Snowball) -->
+        <div class="skills-container">
+          <!-- Q -->
+          <div class="skill-slot" id="slot-Q" title="Q: Băng Tiễn (Frost Lance)">
+            <span class="skill-key">Q</span>
+            <span class="skill-icon">❄️</span>
+            <span class="skill-mana">40</span>
+            <div class="cooldown-overlay" id="cd-Q"></div>
+          </div>
+
+          <!-- W -->
+          <div class="skill-slot" id="slot-W" title="W: Bão Tuyết Vực Thẳm (Blizzard)">
+            <span class="skill-key">W</span>
+            <span class="skill-icon">🌀</span>
+            <span class="skill-mana">70</span>
+            <div class="cooldown-overlay" id="cd-W"></div>
+          </div>
+
+          <!-- E -->
+          <div class="skill-slot" id="slot-E" title="E: Lướt Băng Giá (Frost Dash)">
+            <span class="skill-key">E</span>
+            <span class="skill-icon">💨</span>
+            <span class="skill-mana">50</span>
+            <div class="cooldown-overlay" id="cd-E"></div>
+          </div>
+
+          <!-- R -->
+          <div class="skill-slot" id="slot-R" title="R: Đại Pháo Laser Băng Tuyết (Mega Beam)">
+            <span class="skill-key">R</span>
+            <span class="skill-icon">⚡</span>
+            <span class="skill-mana">100</span>
+            <div class="cooldown-overlay" id="cd-R"></div>
+          </div>
+
+          <!-- D (Snowball) -->
+          <div class="skill-slot summoner-spell" id="slot-D" title="D: Cầu Tuyết ARAM (Mark / Dash)">
+            <span class="skill-key">D</span>
+            <span class="skill-icon" id="icon-D">⚪</span>
+            <span class="skill-mana">0</span>
+            <div class="cooldown-overlay" id="cd-D"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Adversator 6-Slot Inventory -->
+      <div class="inventory-section">
+        <div class="section-label">TRANG BỊ (6 Ô)</div>
+        <div class="inventory-grid">
+          <div class="inv-slot" data-slot="0" title="Ô 1 (Click để bán)"><div class="inv-inner"></div></div>
+          <div class="inv-slot" data-slot="1" title="Ô 2 (Click để bán)"><div class="inv-inner"></div></div>
+          <div class="inv-slot" data-slot="2" title="Ô 3 (Click để bán)"><div class="inv-inner"></div></div>
+          <div class="inv-slot" data-slot="3" title="Ô 4 (Click để bán)"><div class="inv-inner"></div></div>
+          <div class="inv-slot" data-slot="4" title="Ô 5 (Click để bán)"><div class="inv-inner"></div></div>
+          <div class="inv-slot" data-slot="5" title="Ô 6 (Click để bán)"><div class="inv-inner"></div></div>
+        </div>
+      </div>
+
+      <!-- Gold Display & Shop Button -->
+      <div class="gold-shop-container">
+        <div class="gold-badge" title="Vàng hiện có (+3G/giây, ăn lính/hạ tướng)">
+          <span class="gold-coin">🪙</span>
+          <span class="gold-number" id="hud-gold">500</span>
+        </div>
+        <button id="btn-open-shop" class="btn-open-shop" title="Mở Cửa Hàng Trang Bị (Phím P)">
+          🛒 CỬA HÀNG (P)
+        </button>
+      </div>
+
+      <!-- Adversator Combat Stats -->
+      <div class="hero-stats-panel">
+        <div class="stat-item"><span class="stat-lbl">⚔️ C.Kích:</span> <b id="stat-ad">65</b></div>
+        <div class="stat-item"><span class="stat-lbl">🛡️ Giáp:</span> <b id="stat-armor">28</b></div>
+        <div class="stat-item"><span class="stat-lbl">⚡ Phép:</span> <b id="stat-ap">0</b></div>
+        <div class="stat-item"><span class="stat-lbl">👟 Tốc độ:</span> <b id="stat-spd">13.0</b></div>
+        <div class="stat-item"><span class="stat-lbl">🩸 Hút máu:</span> <b id="stat-lifesteal">0%</b></div>
+      </div>
+    </div>
+
+
+    <!-- Skill Customizer Drafter Modal -->
+    <div id="skill-modal" class="skill-modal-backdrop hidden">
+      <div class="skill-modal-content">
+        <div class="modal-header">
+          <h2>⚡ CHỌN BỘ KỸ NĂNG LIÊN MINH (CUSTOM LOADOUT) ⚡</h2>
+          <p class="modal-subtitle">Tự do kết hợp 3 chiêu cơ bản bất kỳ (Q, W, E) và 1 Chiêu cuối (R) toàn bản đồ hoặc kinh điển!</p>
+          <button id="btn-close-modal" class="btn-close">✕</button>
+        </div>
+
+        <!-- Current Selected Loadout Slots -->
+        <div class="loadout-bar">
+          <div class="loadout-slot active" data-slot="Q">
+            <span class="slot-tag">PHÍM Q</span>
+            <div class="slot-info" id="slot-preview-Q">
+              <span class="slot-icon">⚡</span>
+              <span class="slot-name">Phát Bắn Thần Bí</span>
+            </div>
+          </div>
+          <div class="loadout-slot" data-slot="W">
+            <span class="slot-tag">PHÍM W</span>
+            <div class="slot-info" id="slot-preview-W">
+              <span class="slot-icon">☀️</span>
+              <span class="slot-name">Quả Cầu Ánh Sáng</span>
+            </div>
+          </div>
+          <div class="loadout-slot" data-slot="E">
+            <span class="slot-tag">PHÍM E</span>
+            <div class="slot-info" id="slot-preview-E">
+              <span class="slot-icon">✨</span>
+              <span class="slot-name">Dịch Chuyển Cổ Học</span>
+            </div>
+          </div>
+          <div class="loadout-slot ult-slot" data-slot="R">
+            <span class="slot-tag ult-tag">CHIÊU CUỐI R</span>
+            <div class="slot-info" id="slot-preview-R">
+              <span class="slot-icon">🏹</span>
+              <span class="slot-name">Cung Ánh Sáng (Global)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+          <button class="filter-btn active" data-filter="ALL">Tất Cả</button>
+          <button class="filter-btn" data-filter="MARKSMEN">🎯 Xạ Thủ (Global Ult)</button>
+          <button class="filter-btn" data-filter="ASSASSINS">🗡️ Sát Thủ Mid</button>
+          <button class="filter-btn" data-filter="MAGES">🔮 Pháp Sư Mid</button>
+          <button class="filter-btn" data-filter="TANKS">🛡️ Đỡ Đòn</button>
+          <button class="filter-btn" data-filter="FIGHTERS">⚔️ Đấu Sĩ</button>
+        </div>
+
+        <!-- Skills Grid -->
+        <div class="skills-grid" id="skills-grid"></div>
+
+        <!-- Modal Footer -->
+        <div class="modal-footer">
+          <button id="btn-confirm-skills" class="btn-confirm">XÁC NHẬN & VÀO TRẬN ĐẤU</button>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Adversator Item Shop Modal -->
+    <div id="shop-modal" class="shop-modal-backdrop hidden">
+      <div class="shop-modal-content">
+        <!-- Shop Header -->
+        <div class="shop-header">
+          <div class="shop-title-group">
+            <span class="shop-logo">🛡️</span>
+            <h2>ADVERSATOR ARMORY & ITEM SHOP</h2>
+          </div>
+          <div class="shop-header-right">
+            <div class="shop-gold-badge">
+              <span>🪙 Vàng của bạn:</span>
+              <b id="shop-user-gold">500</b>
+            </div>
+            <button id="btn-close-shop" class="btn-close">✕</button>
+          </div>
+        </div>
+
+        <!-- Shop Body (Left: Item Details, Right: Catalog Grid) -->
+        <div class="shop-body">
+          <!-- Left: Selected Item Info Panel -->
+          <div class="shop-detail-panel" id="shop-detail-panel">
+            <div class="detail-header">
+              <div class="detail-icon" id="detail-icon">⚔️</div>
+              <div class="detail-title-group">
+                <div class="detail-name" id="detail-name">Chọn một trang bị</div>
+                <div class="detail-cost-row">
+                  <span class="detail-gold-icon">🪙</span>
+                  <span class="detail-cost" id="detail-cost">0</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="detail-stats" id="detail-stats">
+              Nhấp vào một món trang bị trong cửa hàng để xem chi tiết chỉ số.
+            </div>
+
+            <div class="detail-desc" id="detail-desc"></div>
+
+            <div class="detail-actions">
+              <button id="btn-buy-item" class="btn-buy disabled">MUA TRANG BỊ</button>
+              <button id="btn-sell-item" class="btn-sell hidden">BÁN (70% GIÁ)</button>
+            </div>
+          </div>
+
+          <!-- Right: Items Grid & Filter Tabs -->
+          <div class="shop-catalog-panel">
+            <div class="shop-tabs">
+              <button class="shop-tab active" data-cat="ALL">TẤT CẢ</button>
+              <button class="shop-tab" data-cat="AD">⚔️ VẬT LÝ</button>
+              <button class="shop-tab" data-cat="AP">🔮 PHÉP THUẬT</button>
+              <button class="shop-tab" data-cat="TANK">🛡️ PHÒNG THỦ</button>
+              <button class="shop-tab" data-cat="BOOTS">👟 GIÀY</button>
+              <button class="shop-tab" data-cat="CONSUMABLE">🧪 DƯỢC PHẨM</button>
+            </div>
+            <div class="shop-items-grid" id="shop-items-grid"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
