@@ -1,0 +1,156 @@
+{
+  "yasuo": {
+    "id": 157,
+    "key": "yasuo",
+    "name": "Yasuo",
+    "title": "Kẻ Bất Dung Thứ",
+    "avatarImg": "/images/champions/yasuo.png",
+    "passive": {
+      "name": "Đạo Của Lãng Khách",
+      "desc": "Tỉ lệ Chí mạng của Yasuo được gia tăng. Ngoài ra, Yasuo tích lá chắn mỗi khi di chuyển. Lá chắn kích hoạt khi anh chịu sát thương từ tướng hoặc quái."
+    }
+  },
+  "jinx": {
+    "id": 222,
+    "key": "jinx",
+    "name": "Jinx",
+    "title": "Khẩu Pháo Nổi Loạn",
+    "avatarImg": "/images/champions/jinx.png",
+    "passive": {
+      "name": "Hưng Phấn!",
+      "desc": "Jinx nhận lượng lớn Tốc độ Di chuyển và Tốc độ Đánh khi tham gia hạ gục tướng, công trình, hoặc quái khủng."
+    }
+  },
+  "zed": {
+    "id": 238,
+    "key": "zed",
+    "name": "Zed",
+    "title": "Chúa Tể Bóng Tối",
+    "avatarImg": "/images/champions/zed.png",
+    "passive": {
+      "name": "Khinh Thường Kẻ Yếu",
+      "desc": "Đòn đánh cơ bản của Zed gây thêm Sát thương Phép lên kẻ địch thấp máu. Hiệu ứng này chỉ có thể xảy ra một lần mỗi vài giây lên tướng địch."
+    }
+  },
+  "ashe": {
+    "id": 22,
+    "key": "ashe",
+    "name": "Ashe",
+    "title": "Cung Băng",
+    "avatarImg": "/images/champions/ashe.png",
+    "passive": {
+      "name": "Băng Tiễn",
+      "desc": "Các phát bắn của Ashe làm chậm mục tiêu, khiến cô gây thêm sát thương lên chúng. Đòn chí mạng của Ashe sẽ không gây thêm sát thương nhưng chúng sẽ làm mục tiêu bị chậm hơn nhiều."
+    }
+  },
+  "darius": {
+    "id": 122,
+    "key": "darius",
+    "name": "Darius",
+    "title": "Đại Tướng Noxus",
+    "avatarImg": "/images/champions/darius.png",
+    "passive": {
+      "name": "Xuất Huyết",
+      "desc": "Đòn đánh và kỹ năng sát thương của Darius khiến kẻ địch xuất huyết, chịu sát thương vật lý trong vòng 5 giây, cộng dồn tối đa 5 lần. Khi tướng địch đạt tối đa cộng dồn, Darius hóa cuồng và nhận lượng lớn Sức mạnh Công kích."
+    }
+  },
+  "ezreal": {
+    "id": 81,
+    "key": "ezreal",
+    "name": "Ezreal",
+    "title": "Nhà Thám Hiểm",
+    "avatarImg": "/images/champions/ezreal.png",
+    "passive": {
+      "name": "Pháp Lực Gia Tăng",
+      "desc": "Ezreal nhận thêm Tốc độ Đánh mỗi khi dùng kỹ năng trúng đích, cộng dồn tối đa 5 lần."
+    }
+  },
+  "lux": {
+    "id": 99,
+    "key": "lux",
+    "name": "Lux",
+    "title": "Tiểu Thư Ánh Sáng",
+    "avatarImg": "/images/champions/lux.png",
+    "passive": {
+      "name": "Chớp Lửa Soi Rọi",
+      "desc": "Các kỹ năng sát thương của Lux phủ năng lượng lên kẻ địch trong một vài giây. Đòn đánh kế tiếp của Lux đốt cháy năng lượng này, gây thêm sát thương (tùy theo cấp của Lux) lên mục tiêu."
+    }
+  },
+  "ahri": {
+    "id": 103,
+    "key": "ahri",
+    "name": "Ahri",
+    "title": "Hồ Ly Chín Đuôi",
+    "avatarImg": "/images/champions/ahri.png",
+    "passive": {
+      "name": "Hút Hồn",
+      "desc": "Sau khi hạ 9 lính hoặc quái, Ahri sẽ được hồi máu. Khi tham gia hạ gục tướng, Ahri sẽ được hồi máu nhiều hơn."
+    }
+  },
+  "malphite": {
+    "id": 54,
+    "key": "malphite",
+    "name": "Malphite",
+    "title": "Mảnh Vỡ Thiên Thạch",
+    "avatarImg": "/images/champions/malphite.png",
+    "passive": {
+      "name": "Giáp Hoa Cương",
+      "desc": "Malphite được bảo hộ bởi một lớp đá có thể hấp thụ sát thương bằng 10% máu tối đa của hắn. Nếu Malphite không bị tấn công trong vòng vài giây, hiệu ứng tự động lặp lại."
+    }
+  },
+  "nautilus": {
+    "id": 111,
+    "key": "nautilus",
+    "name": "Nautilus",
+    "title": "Khổng Lồ Biển Sâu",
+    "avatarImg": "/images/champions/nautilus.png",
+    "passive": {
+      "name": "Mỏ Neo Ngàn Cân",
+      "desc": "Đòn đánh đầu tiên của Nautilus lên mục tiêu gây thêm sát thương vật lý và trói chân chúng trong thoáng chốc."
+    }
+  },
+  "chogath": {
+    "id": 31,
+    "key": "chogath",
+    "name": "Cho'Gath",
+    "title": "Quái Vật Hư Không",
+    "avatarImg": "/images/champions/chogath.png",
+    "passive": {
+      "name": "Thú Ăn Thịt",
+      "desc": "Bất cứ khi nào Cho'Gath tiêu diệt một đơn vị, hắn được hồi lại Máu và Năng lượng. Giá trị này gia tăng dựa trên cấp của Cho'Gath."
+    }
+  },
+  "katarina": {
+    "id": 55,
+    "key": "katarina",
+    "name": "Katarina",
+    "title": "Ác Kiếm",
+    "avatarImg": "/images/champions/katarina.png",
+    "passive": {
+      "name": "Tham Lam",
+      "desc": "Mỗi khi một tướng địch vừa bị Katarina gây sát thương chết đi, hồi chiêu còn lại của các kỹ năng của cô giảm mạnh. Nếu Katarina nhặt một Phi Dao, cô dùng nó để chém vào tất cả kẻ địch gần đó, gây sát thương phép."
+    }
+  },
+  "akali": {
+    "id": 84,
+    "key": "akali",
+    "name": "Akali",
+    "title": "Sát Thủ Đơn Độc",
+    "avatarImg": "/images/champions/akali.png",
+    "passive": {
+      "name": "Dấu Ấn Sát Thủ",
+      "desc": "Dùng kỹ năng sát thương tướng địch tạo một vòng năng lượng quanh chúng. Rời khỏi vòng này cường hóa đòn đánh kế tiếp của Akali, giúp tăng tầm và sát thương."
+    }
+  },
+  "syndra": {
+    "id": 134,
+    "key": "syndra",
+    "name": "Syndra",
+    "title": "Nữ Chúa Bóng Tối",
+    "avatarImg": "/images/champions/syndra.png",
+    "passive": {
+      "name": "Tối Thượng",
+      "desc": "Syndra thu thập các Mảnh Vụn Quyền Năng của cô khi lên cấp và gây sát thương lên kẻ địch, thứ sẽ giúp nâng cấp các kỹ năng của cô. Quả Cầu Bóng Tối: Syndra có thể giữ thêm một tích trữ kỹ năng Ý Lực: Gây thêm sát thương chuẩn. Quét Tan Kẻ Yếu: Tăng độ rộng kỹ năng và làm chậm tất cả mục tiêu Bùng Nổ Sức Mạnh: Kết liễu kẻ địch thấp máu"
+    }
+  }
+}

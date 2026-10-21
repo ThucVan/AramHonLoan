@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Three.js ARAM - Howling Abyss 3D</title>
+    <title>ARAM: Mayhem - Vực Gió Hú 3D (Queue #2400)</title>
     <link rel="stylesheet" href="/src/style.css" />
     <script type="importmap">
       {
@@ -23,15 +23,15 @@
 
     <!-- Top Header & Instructions -->
     <div class="top-header">
-      <div class="title-badge">⚡ HOWLING ABYSS - 3D ARAM BATTLE ⚡</div>
+      <div class="title-badge">⚔️ ARAM: MAYHEM (HỖN LOẠN - QUEUE #2400) - HOWLING ABYSS ⚔️</div>
       <div class="controls-hint">
-        <span>Chuột phải:</span> Di chuyển | 
-        <span>Q:</span> Bắn băng | 
-        <span>W:</span> Vòng bão | 
-        <span>E:</span> Lướt | 
-        <span>R:</span> Đại bác Laser | 
-        <span>D:</span> Cầu tuyết (Tái kích hoạt để lướt tới) | 
-        <span>Space:</span> Khóa góc nhìn
+        <span>Chuột phải:</span> Di chuyển / Tấn công | 
+        <span>N:</span> Chọn Lõi Nâng Cấp Mayhem | 
+        <span>P:</span> Cửa Hàng | 
+        <span>A / C:</span> Tầm đánh | 
+        <span>Q, W, E, R:</span> Kỹ năng chuẩn LMHT | 
+        <span>D:</span> Cầu tuyết | 
+        <span>Space:</span> Khóa camera
       </div>
     </div>
 
@@ -40,7 +40,7 @@
       <!-- Avatar -->
       <div class="avatar-frame" id="avatar-frame">
         <span id="avatar-icon">🌪️</span>
-        <div class="level-badge" id="hud-level">6</div>
+        <div class="level-badge" id="hud-level">1</div>
       </div>
 
       <!-- HUD Buttons Column -->
@@ -128,12 +128,26 @@
         </div>
       </div>
 
-      <!-- Gold Display & Shop Button -->
+      <!-- ARAM Mayhem 4-Slot Augments -->
+      <div class="augments-section">
+        <div class="section-label">LÕI NÂNG CẤP (MAYHEM)</div>
+        <div class="augments-grid">
+          <div class="aug-slot" id="aug-slot-0" title="Ô Lõi 1 (Trống)"><div class="aug-inner"></div></div>
+          <div class="aug-slot" id="aug-slot-1" title="Ô Lõi 2 (Trống)"><div class="aug-inner"></div></div>
+          <div class="aug-slot" id="aug-slot-2" title="Ô Lõi 3 (Trống)"><div class="aug-inner"></div></div>
+          <div class="aug-slot" id="aug-slot-3" title="Ô Lõi 4 (Trống)"><div class="aug-inner"></div></div>
+        </div>
+      </div>
+
+      <!-- Gold Display, Shop & Augments Button -->
       <div class="gold-shop-container">
         <div class="gold-badge" title="Vàng hiện có (+3G/giây, ăn lính/hạ tướng)">
           <span class="gold-coin">🪙</span>
           <span class="gold-number" id="hud-gold">500</span>
         </div>
+        <button id="btn-open-augments" class="btn-open-augments" title="Chọn Lõi Nâng Cấp ARAM Mayhem (Phím N)">
+          🎲 CHỌN LÕI (N)
+        </button>
         <button id="btn-open-shop" class="btn-open-shop" title="Mở Cửa Hàng Trang Bị (Phím P)">
           🛒 CỬA HÀNG (P)
         </button>
@@ -141,11 +155,14 @@
 
       <!-- Adversator Combat Stats -->
       <div class="hero-stats-panel">
-        <div class="stat-item"><span class="stat-lbl">⚔️ C.Kích:</span> <b id="stat-ad">65</b></div>
-        <div class="stat-item"><span class="stat-lbl">🛡️ Giáp:</span> <b id="stat-armor">28</b></div>
+        <div class="stat-item"><span class="stat-lbl">⚔️ C.Kích:</span> <b id="stat-ad">60</b></div>
+        <div class="stat-item"><span class="stat-lbl">🛡️ Giáp:</span> <b id="stat-armor">30</b></div>
+        <div class="stat-item"><span class="stat-lbl">🔮 K.Phép:</span> <b id="stat-mr">32</b></div>
         <div class="stat-item"><span class="stat-lbl">⚡ Phép:</span> <b id="stat-ap">0</b></div>
-        <div class="stat-item"><span class="stat-lbl">👟 Tốc độ:</span> <b id="stat-spd">13.0</b></div>
+        <div class="stat-item"><span class="stat-lbl">⏱️ T.Đánh:</span> <b id="stat-as">0.697</b></div>
+        <div class="stat-item"><span class="stat-lbl">👟 Tốc độ:</span> <b id="stat-spd">345</b></div>
         <div class="stat-item"><span class="stat-lbl">🩸 Hút máu:</span> <b id="stat-lifesteal">0%</b></div>
+        <div class="stat-item" title="Tầm đánh cơ bản chuẩn Liên Minh Huyền Thoại"><span class="stat-lbl">🎯 Tầm đánh:</span> <b id="stat-range">175 (Gần)</b></div>
       </div>
     </div>
 
@@ -269,6 +286,30 @@
             </div>
             <div class="shop-items-grid" id="shop-items-grid"></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ARAM Mayhem Augment Selection Modal -->
+    <div id="augment-modal" class="augment-modal-backdrop hidden">
+      <div class="augment-modal-content">
+        <div class="augment-modal-header">
+          <div class="mode-tag">CHẾ ĐỘ ARAM: MAYHEM (HỖN LOẠN - QUEUE #2400)</div>
+          <h2>🎲 CHỌN LÕI NÂNG CẤP ARAM MAYHEM 🎲</h2>
+          <p class="augment-modal-subtitle">Chọn 1 trong 3 Lõi Nâng Cấp để gia tăng sức mạnh đột biến cho trận chiến!</p>
+        </div>
+
+        <div class="augment-cards-container" id="augment-cards-container">
+          <!-- 3 Augment Cards rendered dynamically via JS -->
+        </div>
+
+        <div class="augment-modal-footer">
+          <button id="btn-reroll-augment" class="btn-reroll-augment">
+            🎲 ĐỔI LẠI LÕI (<span id="reroll-count">2</span> LẦN CÒN LẠI)
+          </button>
+          <button id="btn-close-augment-modal" class="btn-skip-augment">
+            ĐÓNG LẠI (GIỮ LẠI LẦN CHỌN)
+          </button>
         </div>
       </div>
     </div>

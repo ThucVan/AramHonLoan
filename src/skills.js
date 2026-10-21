@@ -15,19 +15,28 @@ export class SkillSystem {
     this.laserBeams = [];
     this.windWalls = [];
 
-    // Player loadout (default starter loadout)
+    // Player loadout (default starter loadout - Yasuo)
     this.equipped = {
-      Q: 'ezreal_q',
-      W: 'lux_e',
-      E: 'ezreal_e',
-      R: 'ezreal_r', // Global Ult
+      Q: 'yasuo_q',
+      W: 'yasuo_w',
+      E: 'yasuo_e',
+      R: 'yasuo_r',
       D: 'snowball'
     };
 
     // Cooldown timers
     this.cooldowns = { Q: 0, W: 0, E: 0, R: 0, D: 0 };
-    this.maxCooldowns = { Q: 2.5, W: 5.0, E: 5.5, R: 15.0, D: 7.0 };
-    this.manaCosts = { Q: 35, W: 65, E: 60, R: 100, D: 0 };
+    this.maxCooldowns = { Q: 2.5, W: 18.0, E: 0.5, R: 25.0, D: 7.0 };
+    this.manaCosts = { Q: 0, W: 0, E: 0, R: 0, D: 0 };
+
+    // Champion specific skill states
+    this.yasuoQStacks = 0;
+    this.yasuoQTimer = 0;
+    this.jinxRocketMode = false;
+    this.zedShadow = null;
+    this.zedShadowTimer = 0;
+    this.ahriRCharges = 0;
+    this.ahriRTimer = 0;
 
     this.markedEnemy = null; // for Snowball recast
     this.allSkillsMap = {};
@@ -120,6 +129,32 @@ export class SkillSystem {
     return true;
   }
 
+  equipChampionKit(heroKey) {
+    const kitMap = {
+      yasuo: { Q: 'yasuo_q', W: 'yasuo_w', E: 'yasuo_e', R: 'yasuo_r' },
+      jinx: { Q: 'jinx_q', W: 'jinx_w', E: 'jinx_e', R: 'jinx_r' },
+      zed: { Q: 'zed_q', W: 'zed_w', E: 'zed_e', R: 'zed_r' },
+      ashe: { Q: 'ashe_q', W: 'ashe_w', E: 'ashe_e', R: 'ashe_r' },
+      darius: { Q: 'darius_q', W: 'darius_w', E: 'darius_e', R: 'darius_r' },
+      ahri: { Q: 'ahri_q', W: 'ahri_w', E: 'ahri_e', R: 'ahri_r' },
+      ezreal: { Q: 'ezreal_q', W: 'ezreal_w', E: 'ezreal_e', R: 'ezreal_r' },
+      lux: { Q: 'lux_q', W: 'lux_w', E: 'lux_e', R: 'lux_r' },
+      malphite: { Q: 'malphite_q', W: 'malphite_w', E: 'malphite_e', R: 'malphite_r' },
+      nautilus: { Q: 'nautilus_q', W: 'nautilus_w', E: 'nautilus_e', R: 'nautilus_r' },
+      chogath: { Q: 'chogath_q', W: 'chogath_w', E: 'chogath_e', R: 'chogath_r' },
+      katarina: { Q: 'katarina_q', W: 'katarina_w', E: 'katarina_e', R: 'katarina_r' },
+      akali: { Q: 'akali_q', W: 'akali_w', E: 'akali_e', R: 'akali_r' },
+      syndra: { Q: 'syndra_q', W: 'syndra_w', E: 'syndra_e', R: 'syndra_r' }
+    };
+    const kit = kitMap[heroKey] || kitMap.yasuo;
+    this.equipped.Q = kit.Q;
+    this.equipped.W = kit.W;
+    this.equipped.E = kit.E;
+    this.equipped.R = kit.R;
+    this.updateEquippedStats();
+    return this.equipped;
+  }
+
   getSkill(slot) {
     return this.allSkillsMap[this.equipped[slot]];
   }
@@ -158,6 +193,13 @@ export class SkillSystem {
     return group;
   }
 
+  // Tính toán sát thương chuẩn LMHT có tỉ lệ scale theo AD và AP của Tướng
+  getScaledDamage(base, adRatio = 0, apRatio = 0) {
+    const ad = this.player?.ad || 65;
+    const ap = this.player?.ap || 0;
+    return Math.round(base + (ad * adRatio) + (ap * apRatio));
+  }
+
   // Cast by Slot: Q, W, E, R, D
   cast(slot, targetPoint, targets = []) {
     if (this.player.isDead) return false;
@@ -193,136 +235,271 @@ export class SkillSystem {
 
     switch (skillId) {
       // 1. GLOBAL ULTIMATES
-      case 'ezreal_r': // Trueshot Barrage - giant golden crescent across whole map
+      case 'ezreal_r':
         this.castEzrealR(dir, targets);
         return true;
 
-      case 'jinx_r': // Super Mega Death Rocket - massive rocket flying across map
+      case 'jinx_r':
         this.castJinxR(dir, targets);
         return true;
 
-      case 'ashe_r': // Enchanted Crystal Arrow - giant crystal arrow across map
+      case 'ashe_r':
         this.castAsheR(dir, targets);
         return true;
 
       // 2. MARKSMEN BASICS
-      case 'ezreal_q': // 3D Mystic Energy Lance
+      case 'ezreal_q':
         this.cast3DMysticShot(dir);
         return true;
 
-      case 'ezreal_e': // Arcane shift blink
-      case 'kat_e':
-        this.castBlink(targetPoint, 9.0, 220, targets);
+      case 'ezreal_w':
+        this.castEzrealW(dir);
         return true;
 
-      case 'jinx_w': // Zap electric beam
+      case 'ezreal_e':
+        this.castBlink(targetPoint, 9.0, this.getScaledDamage(120, 0.5, 0.75), targets);
+        return true;
+
+      case 'jinx_q':
+        this.castJinxQ(dir);
+        return true;
+
+      case 'jinx_w':
         this.castZap(dir, targets);
         return true;
 
-      case 'ashe_w': // Volley
+      case 'jinx_e':
+        this.castJinxE(targetPoint);
+        return true;
+
+      case 'ashe_q':
+        this.castAsheQ(dir);
+        return true;
+
+      case 'ashe_w':
         this.castVolley(dir);
         return true;
 
+      case 'ashe_e':
+        this.castAsheE(dir);
+        return true;
+
       // 3. ASSASSINS
-      case 'zed_q': // 3D Razor Shuriken
+      case 'zed_q':
+        this.cast3DShuriken(dir);
+        return true;
+
+      case 'zed_w':
+        this.castZedW(targetPoint, targets);
+        return true;
+
+      case 'zed_e':
+        this.castZedE(targets);
+        return true;
+
+      case 'zed_r':
+        this.castZedR(targetPoint, targets);
+        return true;
+
+      case 'akali_r':
+        this.castAkaliR(targetPoint, targets);
+        return true;
+
+      case 'darius_r':
+        this.castDariusR(targetPoint, targets);
+        return true;
+
+      case 'katarina_q':
+        this.castKatarinaQ(dir, targets);
+        return true;
+
+      case 'katarina_w':
+        this.castKatarinaW();
+        return true;
+
+      case 'kat_e':
+      case 'katarina_e':
+        this.castBlink(targetPoint, 9.0, this.getScaledDamage(110, 0.6, 0.6), targets);
+        return true;
+
+      case 'kat_r':
+      case 'katarina_r':
+        this.castDeathLotus(targets);
+        return true;
+
+      case 'akali_q':
+        this.castAkaliQ(dir);
+        return true;
+
+      case 'akali_w':
+        this.castAkaliW(targetPoint);
+        return true;
+
       case 'akali_e':
         this.cast3DShuriken(dir);
         return true;
 
-      case 'zed_w': // Living shadow blink
-        this.castBlink(targetPoint, 10.0, 150, targets);
-        return true;
-
-      case 'zed_r': // Death Mark
-      case 'akali_r':
-      case 'darius_r':
-        this.castExecuteSlam(targetPoint, 600, targets);
-        return true;
-
-      case 'kat_r': // Death Lotus
-        this.castDeathLotus(targets);
-        return true;
-
       // 4. MAGES
-      case 'lux_q': // Light binding snare
-        this.castProjectile({ dir, speed: 32, range: 30, damage: 300, color: 0xfef08a, emissive: 0xfef08a, scale: 0.6, pierce: 2 });
+      case 'lux_q':
+        this.castProjectile({
+          dir,
+          speed: 32,
+          range: 30,
+          damage: this.getScaledDamage(130, 0, 0.75),
+          color: 0xfef08a,
+          emissive: 0xfef08a,
+          scale: 0.6,
+          pierce: 2
+        });
         this.sounds.playCastQ();
         return true;
 
-      case 'lux_e': // Lucent Singularity AoE
-        this.castAoEZone(targetPoint, 4.5, 320, 0x38bdf8);
+      case 'lux_w':
+        this.castLuxW(dir);
         return true;
 
-      case 'lux_r': // Final Spark Laser
-        this.castLaserBeam(dir, 80, 580, targets, 0xfef08a);
+      case 'lux_e':
+        this.castAoEZone(targetPoint, 4.5, this.getScaledDamage(150, 0, 0.8), 0x38bdf8);
         return true;
 
-      case 'ahri_q': // Orb of Deception
+      case 'lux_r':
+        this.castLaserBeam(dir, 80, this.getScaledDamage(450, 0, 1.2), targets, 0xfef08a);
+        return true;
+
+      case 'ahri_q':
         this.castAhriOrb(dir);
         return true;
 
-      case 'ahri_e': // Charm heart
-        this.castProjectile({ dir, speed: 28, range: 26, damage: 200, color: 0xf472b6, emissive: 0xf472b6, scale: 0.55 });
-        this.sounds.playCastQ();
+      case 'ahri_w':
+        this.castAhriW(targets);
         return true;
 
-      case 'syndra_e': // Scatter the weak wave
+      case 'ahri_e':
+        this.castAhriE(dir);
+        return true;
+
+      case 'ahri_r':
+        this.castAhriR(targetPoint, targets);
+        return true;
+
+      case 'syndra_q':
+        this.castSyndraQ(targetPoint);
+        return true;
+
+      case 'syndra_w':
+        this.castSyndraW(targetPoint);
+        return true;
+
+      case 'syndra_e':
         this.castConeKnockback(dir, targets);
         return true;
 
+      case 'syndra_r':
+        this.castSyndraR(targetPoint, targets);
+        return true;
+
       // 5. TANKS
-      case 'malphite_q': // Rolling 3D boulder
+      case 'malphite_q':
         this.castMeteorBoulder(dir, targets);
         return true;
 
-      case 'malphite_r': // Unstoppable Force slam
+      case 'malphite_w':
+        this.castMalphiteW();
+        return true;
+
+      case 'malphite_e':
+        this.castMalphiteE(targets);
+        return true;
+
+      case 'malphite_r':
         this.castMalphiteR(targetPoint, targets);
         return true;
 
-      case 'naut_q': // Dredge Line anchor
+      case 'naut_q':
+      case 'nautilus_q':
         this.castAnchorHook(dir, targets);
         return true;
 
-      case 'naut_w': // Titan shield
-        this.player.heal(350, this.vfx);
+      case 'naut_w':
+      case 'nautilus_w':
+        const shieldAmt = this.getScaledDamage(250, 0, 0.8);
+        this.player.heal(shieldAmt, this.vfx);
         this.vfx.spawnIceExplosion(this.player.mesh.position, 0x0284c7, 20);
         this.sounds.playHeal();
         return true;
 
-      case 'chogath_q': // Rupture ground spikes
-        this.castAoEZone(targetPoint, 4.0, 340, 0x15803d);
+      case 'nautilus_e':
+        this.castNautilusE(targets);
         return true;
 
-      case 'chogath_r': // Feast
-        this.castExecuteSlam(targetPoint, 750, targets);
-        this.player.maxHp += 100;
-        this.player.heal(150, this.vfx);
+      case 'nautilus_r':
+        this.castNautilusR(targetPoint, targets);
+        return true;
+
+      case 'chogath_q':
+        this.castAoEZone(targetPoint, 4.0, this.getScaledDamage(140, 0, 1.0), 0x15803d);
+        return true;
+
+      case 'chogath_w':
+        this.castChogathW(dir, targets);
+        return true;
+
+      case 'chogath_e':
+        this.castChogathE(dir);
+        return true;
+
+      case 'chogath_r':
+        this.castExecuteSlam(targetPoint, this.getScaledDamage(450, 0, 0.7) + Math.round(this.player.maxHp * 0.1), targets);
+        this.player.maxHp += 120;
+        this.player.heal(200, this.vfx);
         return true;
 
       // 6. FIGHTERS
-      case 'yasuo_q': // Steel tempest / Tornado
-        this.castTornado(dir);
+      case 'yasuo_q':
+        this.castYasuoQ(dir, targets);
         return true;
 
-      case 'yasuo_w': // Windwall
+      case 'yasuo_w':
         this.castWindWall(dir);
         return true;
 
-      case 'yasuo_r': // Last breath
-        this.castExecuteSlam(targetPoint, 550, targets);
+      case 'yasuo_e':
+        this.castYasuoE(targetPoint, targets);
         return true;
 
-      case 'darius_q': // Decimate circle
+      case 'yasuo_r':
+        this.castYasuoR(targetPoint, targets);
+        return true;
+
+      case 'darius_q':
         this.castAxeDecimate(targets);
         return true;
 
-      case 'darius_e': // Apprehend pull
+      case 'darius_w':
+        this.castDariusW(targets);
+        return true;
+
+      case 'darius_e':
+        this.castDariusE(dir, targets);
+        return true;
+
+      case 'darius_r':
+        this.castDariusR(targetPoint, targets);
+        return true;
         this.castConeKnockback(dir, targets, true);
         return true;
 
       default:
-        // Generic fallback skillshot
-        this.castProjectile({ dir, speed: 35, range: 28, damage: 250, color: 0x38bdf8, emissive: 0x38bdf8, scale: 0.5 });
+        // Generic fallback skillshot (scale theo AD + AP)
+        this.castProjectile({
+          dir,
+          speed: 35,
+          range: 28,
+          damage: this.getScaledDamage(120, 0.8, 0.6),
+          color: 0x38bdf8,
+          emissive: 0x38bdf8,
+          scale: 0.5
+        });
         this.sounds.playCastQ();
         return true;
     }
@@ -351,7 +528,7 @@ export class SkillSystem {
       speed: 38,
       range: 220, // Whole map
       traveled: 0,
-      damage: 650,
+      damage: this.getScaledDamage(450, 1.4, 1.0),
       radius: 4.5,
       pierce: 999, // Pierces everything!
       type: 'global_wave'
@@ -388,7 +565,7 @@ export class SkillSystem {
       accelerate: 18, // Accelerates across the map!
       range: 220, // Whole map
       traveled: 0,
-      damage: 800,
+      damage: this.getScaledDamage(500, 1.6, 0),
       radius: 1.5,
       aoeRadius: 6.5,
       type: 'jinx_rocket'
@@ -423,7 +600,7 @@ export class SkillSystem {
       speed: 36,
       range: 220, // Whole map
       traveled: 0,
-      damage: 700,
+      damage: this.getScaledDamage(400, 0.5, 1.0),
       radius: 1.8,
       aoeRadius: 5.5,
       type: 'ashe_arrow'
@@ -457,7 +634,7 @@ export class SkillSystem {
       speed: 28,
       range: 24,
       traveled: 0,
-      damage: 260,
+      damage: this.getScaledDamage(140, 0, 0.65),
       radius: 1.2,
       isRolling: true,
       type: 'meteor'
@@ -546,7 +723,7 @@ export class SkillSystem {
 
   // Jinx Zap electric line
   castZap(dir, targets) {
-    this.castLaserBeam(dir, 35, 280, targets, 0x38bdf8);
+    this.castLaserBeam(dir, 35, this.getScaledDamage(150, 1.6, 0), targets, 0x38bdf8);
   }
 
   // Ezreal Q: 3D Mystic Energy Lance
@@ -563,7 +740,7 @@ export class SkillSystem {
       speed: 42,
       range: 32,
       traveled: 0,
-      damage: 260,
+      damage: this.getScaledDamage(130, 1.3, 0.25),
       radius: 1.1,
       type: 'lance',
       onHit: () => {
@@ -586,7 +763,7 @@ export class SkillSystem {
       speed: 38,
       range: 28,
       traveled: 0,
-      damage: 290,
+      damage: this.getScaledDamage(130, 1.2, 0),
       radius: 1.2,
       type: 'shuriken'
     });
@@ -600,7 +777,7 @@ export class SkillSystem {
     for (let i = -3; i <= 3; i++) {
       const angle = baseAngle + (i / 3) * spread;
       const dir = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)).normalize();
-      this.castProjectile({ dir, speed: 34, range: 24, damage: 180, color: 0x38bdf8, emissive: 0x38bdf8, scale: 0.35 });
+      this.castProjectile({ dir, speed: 34, range: 24, damage: this.getScaledDamage(60, 0.4, 0), color: 0x38bdf8, emissive: 0x38bdf8, scale: 0.35 });
     }
     this.sounds.playCastQ();
   }
@@ -617,7 +794,7 @@ export class SkillSystem {
       speed: 26,
       range: 35,
       traveled: 0,
-      damage: 320,
+      damage: this.getScaledDamage(120, 1.4, 0),
       radius: 1.8,
       pierce: 99,
       type: 'tornado'
@@ -659,7 +836,7 @@ export class SkillSystem {
       speed: 30,
       range: 24,
       traveled: 0,
-      damage: 220,
+      damage: this.getScaledDamage(110, 0, 0.65),
       radius: 1.2,
       returning: false,
       playerRef: this.player,
@@ -682,10 +859,11 @@ export class SkillSystem {
     this.vfx.spawnIceExplosion(targetLanding, 0xd97706, 30);
     this.sounds.playUlt();
 
+    const damage = this.getScaledDamage(400, 0, 0.9);
     for (const t of targets) {
       if (t.isDead) continue;
       if (targetLanding.distanceTo(t.mesh.position) <= 5.5) {
-        t.takeDamage(600, this.vfx);
+        t.takeDamage(damage, this.vfx);
         // Knockup visual effect
         t.mesh.position.y += 2.5;
         setTimeout(() => { if (t.mesh) t.mesh.position.y = 0; }, 400);
@@ -718,10 +896,11 @@ export class SkillSystem {
   // Katarina R: Death Lotus
   castDeathLotus(targets) {
     this.sounds.playUlt();
+    const damage = this.getScaledDamage(55, 0.35, 0.3);
     for (let i = 0; i < 18; i++) {
       const angle = (i / 18) * Math.PI * 2;
       const d = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
-      this.castProjectile({ dir: d, speed: 30, range: 10, damage: 160, color: 0xef4444, emissive: 0xef4444, scale: 0.3 });
+      this.castProjectile({ dir: d, speed: 30, range: 10, damage, color: 0xef4444, emissive: 0xef4444, scale: 0.3 });
     }
     this.vfx.spawnIceExplosion(this.player.mesh.position, 0xef4444, 25);
   }
@@ -751,11 +930,12 @@ export class SkillSystem {
     };
     requestAnimationFrame(spinInterval);
 
+    const baseDmg = this.getScaledDamage(140, 1.4, 0);
     for (const t of targets) {
       if (t.isDead) continue;
       const d = center.distanceTo(t.mesh.position);
       if (d <= 5.5) {
-        const dmg = d >= 2.5 ? 320 : 160; // Outer ring blade bonus
+        const dmg = d >= 2.5 ? Math.round(baseDmg * 1.5) : Math.round(baseDmg * 0.7); // Outer ring blade bonus
         t.takeDamage(dmg, this.vfx);
       }
     }
@@ -765,12 +945,13 @@ export class SkillSystem {
   castConeKnockback(dir, targets, pull = false) {
     const origin = this.player.mesh.position;
     this.sounds.playHit();
+    const damage = this.getScaledDamage(120, 0.8, 0.65);
     for (const t of targets) {
       if (t.isDead) continue;
       const toT = new THREE.Vector3().subVectors(t.mesh.position, origin);
       const dist = toT.length();
       if (dist <= 12.0 && toT.normalize().dot(dir) > 0.6) {
-        t.takeDamage(240, this.vfx);
+        t.takeDamage(damage, this.vfx);
         const shoveDir = pull ? dir.clone().negate() : dir;
         t.mesh.position.addScaledVector(shoveDir, 4.0);
         this.vfx.spawnIceExplosion(t.mesh.position, 0xc084fc, 15);
@@ -893,6 +1074,21 @@ export class SkillSystem {
       }
     }
 
+    // 2b. Champion Buffs & Stacks Timers
+    if (this.yasuoQTimer > 0) {
+      this.yasuoQTimer -= delta;
+      if (this.yasuoQTimer <= 0) {
+        this.yasuoQStacks = 0;
+      }
+    }
+    if (this.zedShadowTimer > 0) {
+      this.zedShadowTimer -= delta;
+      if (this.zedShadowTimer <= 0 && this.zedShadow) {
+        this.scene.remove(this.zedShadow);
+        this.zedShadow = null;
+      }
+    }
+
     // 3. Update Projectiles
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
@@ -943,18 +1139,45 @@ export class SkillSystem {
         p.mesh.rotation.z += 8 * delta;
       }
 
+      // Check collision with Windwalls (Tường Gió Yasuo chặn đường đạn)
+      let blockedByWall = false;
+      for (const wall of this.windWalls) {
+        if (p.mesh.position.distanceTo(wall.mesh.position) < 4.2) {
+          blockedByWall = true;
+          this.vfx.spawnIceExplosion(p.mesh.position, 0x38bdf8, 14);
+          break;
+        }
+      }
+      if (blockedByWall) {
+        this.scene.remove(p.mesh);
+        this.projectiles.splice(i, 1);
+        continue;
+      }
+
       // Check collision with targets
       let hit = false;
       for (const target of targets) {
         if (target.isDead) continue;
-        const d = p.mesh.position.distanceTo(target.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0)));
+        const targetPos = target.mesh ? target.mesh.position : (target.group ? target.group.position : null);
+        if (!targetPos) continue;
+
+        const d = p.mesh.position.distanceTo(targetPos.clone().add(new THREE.Vector3(0, 1.2, 0)));
         if (d < p.radius + 0.8) {
-          // Apply AP / AD stat bonus to damage
-          const bonusDmg = Math.round((this.player.ap || 0) * 0.75 + (this.player.ad || 0) * 0.5);
-          const totalDmg = p.damage + bonusDmg;
+          const totalDmg = p.damage;
           target.takeDamage(totalDmg, this.vfx);
-          this.vfx.spawnIceExplosion(p.mesh.position, 0x38bdf8, 16);
+          this.vfx.spawnIceExplosion(p.mesh.position, p.color || 0x38bdf8, 16);
           this.sounds.playHit();
+
+          // Hất tung trên không nếu là chiêu hất tung (Lốc Xoáy Yasuo Q3)
+          if (p.knockup && target.mesh) {
+            target.mesh.position.y += 2.8;
+            setTimeout(() => { if (target.mesh) target.mesh.position.y = 0; }, 1000);
+          }
+
+          // Hiệu ứng Mê Hoặc (Ahri E)
+          if (p.charm) {
+            this.vfx.spawnDamageNumber('💘 MÊ HOẶC!', targetPos, 'heal');
+          }
 
           // Apply Lifesteal
           if (this.player.lifesteal > 0) {
@@ -973,7 +1196,8 @@ export class SkillSystem {
           if (p.aoeRadius) {
             this.vfx.spawnIceExplosion(p.mesh.position, 0xf97316, 35);
             for (const other of targets) {
-              if (other !== target && !other.isDead && p.mesh.position.distanceTo(other.mesh.position) <= p.aoeRadius) {
+              const otherPos = other.mesh ? other.mesh.position : (other.group ? other.group.position : null);
+              if (other !== target && !other.isDead && otherPos && p.mesh.position.distanceTo(otherPos) <= p.aoeRadius) {
                 other.takeDamage(p.damage * 0.75, this.vfx);
               }
             }
@@ -1035,5 +1259,664 @@ export class SkillSystem {
         this.windWalls.splice(i, 1);
       }
     }
+  }
+
+  // ==========================================
+  // CÁC CHIÊU THỨC CHUẨN LMHT (COMMUNITYDRAGON)
+  // ==========================================
+
+  // Yasuo Q: Bão Kiếm (Steel Tempest - Đâm kiếm Q1/Q2 & Phóng Lốc Xoáy Hất Tung Q3)
+  castYasuoQ(dir, targets) {
+    if (this.yasuoQStacks === 2) {
+      // Q3: LỐC XOÁY HẤT TUNG
+      this.yasuoQStacks = 0;
+      this.yasuoQTimer = 0;
+      this.castTornado(dir);
+      this.vfx.spawnDamageNumber('🌪️ LỐC XOÁY BÃO KIẾM!', this.player.mesh.position, 'crit');
+    } else {
+      // Q1 & Q2: ĐÂM KIẾM THẲNG XUYÊN THẤU
+      this.castYasuoThrust(dir, targets);
+    }
+  }
+
+  castYasuoThrust(dir, targets) {
+    const pPos = this.player.mesh.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+    const range = 13.0;
+    const damage = this.getScaledDamage(100, 1.05, 0);
+
+    // Đường kiếm khí đâm thẳng chớp nhoáng
+    const thrustGeo = new THREE.CylinderGeometry(0.12, 0.28, range, 8);
+    thrustGeo.rotateX(Math.PI / 2);
+    const thrustMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.95 });
+    const thrustMesh = new THREE.Mesh(thrustGeo, thrustMat);
+    thrustMesh.position.copy(pPos).addScaledVector(dir, range / 2);
+    thrustMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+    this.scene.add(thrustMesh);
+    setTimeout(() => this.scene.remove(thrustMesh), 120);
+
+    this.sounds.playHit();
+    this.vfx.spawnIceExplosion(pPos.clone().addScaledVector(dir, range * 0.4), 0x38bdf8, 12);
+
+    let hitAny = false;
+    for (const t of targets) {
+      if (t.isDead) continue;
+      const tPos = t.mesh ? t.mesh.position : (t.group ? t.group.position : null);
+      if (!tPos) continue;
+      const toT = new THREE.Vector3().subVectors(tPos, pPos);
+      const proj = toT.dot(dir);
+      if (proj > 0 && proj <= range) {
+        const perp = toT.clone().subScaledVector(dir, proj).length();
+        if (perp <= 2.2) {
+          t.takeDamage(damage, this.vfx);
+          this.vfx.spawnIceExplosion(tPos, 0x38bdf8, 14);
+          hitAny = true;
+        }
+      }
+    }
+
+    if (hitAny) {
+      this.yasuoQStacks = Math.min(2, this.yasuoQStacks + 1);
+      this.yasuoQTimer = 6.0;
+      if (this.yasuoQStacks === 2) {
+        this.vfx.spawnDamageNumber('🌪️ LỐC XOÁY SẴN SÀNG! (Q3)', this.player.mesh.position, 'crit');
+      } else {
+        this.vfx.spawnDamageNumber('⚔️ TỤ BÃO (CỘNG DỒN 1)', this.player.mesh.position, 'heal');
+      }
+    }
+  }
+
+  // Yasuo E: Quét Kiếm (Dash xuyên mục tiêu chém kiếm)
+  castYasuoE(targetPoint, targets) {
+    const pPos = this.player.mesh.position;
+    let dashTarget = null;
+    let minDist = 9.0;
+    for (const t of targets) {
+      if (t.isDead) continue;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(targetPoint) < minDist) {
+        minDist = tPos.distanceTo(targetPoint);
+        dashTarget = t;
+      }
+    }
+
+    const dir = new THREE.Vector3().subVectors(targetPoint, pPos);
+    dir.y = 0;
+    dir.normalize();
+
+    let dest = null;
+    const damage = this.getScaledDamage(90, 0.6, 0.6);
+
+    if (dashTarget) {
+      const tPos = dashTarget.mesh ? dashTarget.mesh.position : dashTarget.group.position;
+      const toTarget = new THREE.Vector3().subVectors(tPos, pPos).normalize();
+      // Dash xuyên qua kẻ địch và xuất hiện phía sau
+      dest = tPos.clone().addScaledVector(toTarget, 1.8);
+      dashTarget.takeDamage(damage, this.vfx);
+      this.sounds.playHit();
+    } else {
+      const dist = Math.min(8.0, new THREE.Vector3().subVectors(targetPoint, pPos).length());
+      dest = pPos.clone().addScaledVector(dir, Math.max(5.0, dist));
+    }
+
+    dest.x = Math.max(-11, Math.min(11, dest.x));
+    dest.z = Math.max(-115, Math.min(115, dest.z));
+
+    this.player.mesh.position.copy(dest);
+    this.player.targetPos = null;
+    this.vfx.spawnIceExplosion(pPos, 0x38bdf8, 14);
+    this.vfx.spawnIceExplosion(dest, 0x67e8f9, 18);
+    this.sounds.playDash();
+  }
+
+  // Yasuo R: Trăn Trối (Last Breath)
+  castYasuoR(targetPoint, targets) {
+    let bestTarget = null;
+    let bestDist = 20.0;
+    // Ưu tiên kẻ địch đang bị hất tung trên không hoặc gần con trỏ
+    for (const t of targets) {
+      if (t.isDead) continue;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (!tPos) continue;
+      const d = this.player.mesh.position.distanceTo(tPos);
+      if (d <= 20.0) {
+        if (t.mesh && t.mesh.position.y > 1.0) {
+          bestTarget = t;
+          break;
+        }
+        if (d < bestDist) {
+          bestDist = d;
+          bestTarget = t;
+        }
+      }
+    }
+
+    if (!bestTarget) {
+      this.vfx.spawnDamageNumber('CẦN MỤC TIÊU TRONG TẦM CHIÊU!', this.player.mesh.position, 'heal');
+      return;
+    }
+
+    const tPos = bestTarget.mesh ? bestTarget.mesh.position : bestTarget.group.position;
+    this.player.mesh.position.copy(tPos.clone().add(new THREE.Vector3(0, 0, 1.5)));
+    this.player.targetPos = null;
+
+    if (bestTarget.mesh) {
+      bestTarget.mesh.position.y = 2.5;
+      setTimeout(() => { if (bestTarget.mesh) bestTarget.mesh.position.y = 0; }, 900);
+    }
+
+    this.sounds.playUlt();
+    const damage = this.getScaledDamage(380, 1.6, 0);
+
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        this.vfx.spawnIceExplosion(tPos, 0x38bdf8, 20);
+        this.sounds.playHit();
+      }, i * 150);
+    }
+
+    setTimeout(() => {
+      bestTarget.takeDamage(damage, this.vfx);
+      this.vfx.spawnIceExplosion(tPos, 0x0284c7, 35);
+      this.vfx.spawnDamageNumber(`TRĂN TRỐI! -${damage}`, tPos, 'crit');
+    }, 500);
+  }
+
+  // Jinx Q: Tráo Hàng! (Chuyển đổi Bằng Chíu & Xương Cá)
+  castJinxQ(dir) {
+    this.jinxRocketMode = !this.jinxRocketMode;
+    if (this.jinxRocketMode) {
+      this.player.rangeLol = 675;
+      this.player.range = +(675 * (20 / 775)).toFixed(2);
+      this.player.updateRangeRing();
+      this.vfx.spawnDamageNumber('🚀 XƯƠNG CÁ (SÚNG PHÓNG LỰU)! TẦM 675', this.player.mesh.position, 'crit');
+    } else {
+      this.player.rangeLol = 525;
+      this.player.range = +(525 * (20 / 775)).toFixed(2);
+      this.player.updateRangeRing();
+      this.vfx.spawnDamageNumber('⚡ BẰNG CHÍU (SÚNG SÁU NÒNG)! TẦM 525', this.player.mesh.position, 'heal');
+    }
+
+    // Đồng thời phóng 1 phát rocket về hướng chỉ định
+    const damage = this.getScaledDamage(120, 1.3, 0);
+    this.castProjectile({
+      dir,
+      speed: 36,
+      range: 32,
+      damage,
+      color: 0xf472b6,
+      emissive: 0xf43f5e,
+      scale: 0.65,
+      aoeRadius: 4.5,
+      pierce: 1
+    });
+    this.sounds.playCastQ();
+  }
+
+  // Jinx E: Lựu Đạn Ma Hỏa (3 quả bẫy nổ trói chân)
+  castJinxE(targetPoint) {
+    const damage = this.getScaledDamage(130, 0, 1.0);
+    for (let i = -1; i <= 1; i++) {
+      const offset = new THREE.Vector3(i * 1.5, 0, 0);
+      const pos = targetPoint.clone().add(offset);
+      this.castAoEZone(pos, 2.2, damage, 0xf43f5e);
+    }
+  }
+
+  // Zed W: Phân Thân Bóng Tối (Living Shadow & Hoán Đổi Vị Trí)
+  castZedW(targetPoint, targets) {
+    if (this.zedShadow && this.zedShadowTimer > 0) {
+      // Tái kích hoạt: Hoán đổi vị trí với bóng
+      const oldPos = this.player.mesh.position.clone();
+      const shadowPos = this.zedShadow.position.clone();
+      this.player.mesh.position.copy(shadowPos);
+      this.player.targetPos = null;
+
+      this.scene.remove(this.zedShadow);
+      this.zedShadow = null;
+      this.zedShadowTimer = 0;
+
+      this.vfx.spawnIceExplosion(oldPos, 0x9333ea, 20);
+      this.vfx.spawnIceExplosion(shadowPos, 0xc084fc, 25);
+      this.sounds.playDash();
+      this.vfx.spawnDamageNumber('HOÁN ĐỔI BÓNG TỐI!', this.player.mesh.position, 'crit');
+      return;
+    }
+
+    // Thả phân thân bóng tối về điểm chỉ định
+    const pPos = this.player.mesh.position;
+    const toTarget = new THREE.Vector3().subVectors(targetPoint, pPos);
+    toTarget.y = 0;
+    const dist = Math.min(12.0, toTarget.length());
+    const dir = toTarget.clone().normalize();
+    const shadowPos = pPos.clone().addScaledVector(dir, dist);
+
+    const shadowGeo = new THREE.CylinderGeometry(0.4, 0.5, 2.0, 8);
+    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x581c87, transparent: true, opacity: 0.75 });
+    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+    shadow.position.set(shadowPos.x, 1.0, shadowPos.z);
+    this.scene.add(shadow);
+
+    this.zedShadow = shadow;
+    this.zedShadowTimer = 5.0;
+    this.vfx.spawnIceExplosion(shadowPos, 0x9333ea, 18);
+    this.sounds.playDash();
+    this.vfx.spawnDamageNumber('PHÂN THÂN XUẤT HIỆN! (Nhấn W đổi chỗ)', this.player.mesh.position, 'heal');
+  }
+
+  // Zed R: Dấu Ấn Tử Thần (Death Mark)
+  castZedR(targetPoint, targets) {
+    let target = null;
+    let minDist = 15.0;
+    for (const t of targets) {
+      if (t.isDead) continue;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(targetPoint) < minDist) {
+        minDist = tPos.distanceTo(targetPoint);
+        target = t;
+      }
+    }
+
+    if (!target) {
+      this.castExecuteSlam(targetPoint, this.getScaledDamage(350, 1.8, 0), targets);
+      return;
+    }
+
+    const tPos = target.mesh ? target.mesh.position : target.group.position;
+    const oldPos = this.player.mesh.position.clone();
+
+    // Để lại bóng tại vị trí xuất phát
+    const shadowGeo = new THREE.CylinderGeometry(0.4, 0.5, 2.0, 8);
+    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x581c87, transparent: true, opacity: 0.75 });
+    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+    shadow.position.set(oldPos.x, 1.0, oldPos.z);
+    this.scene.add(shadow);
+    this.zedShadow = shadow;
+    this.zedShadowTimer = 6.0;
+
+    // Lướt ra sau lưng mục tiêu
+    this.player.mesh.position.copy(tPos.clone().add(new THREE.Vector3(0, 0, 1.5)));
+    this.player.targetPos = null;
+
+    this.sounds.playUlt();
+    this.vfx.spawnIceExplosion(tPos, 0xef4444, 30);
+
+    const damage = this.getScaledDamage(350, 1.6, 0);
+    target.takeDamage(damage, this.vfx);
+    this.vfx.spawnDamageNumber(`DẤU ẤN TỬ THẦN! -${damage}`, tPos, 'crit');
+  }
+
+  // Darius E: Bắt Giữ (Apprehend - Kéo kẻ địch về phía Darius)
+  castDariusE(dir, targets) {
+    this.sounds.playHit();
+    const damage = this.getScaledDamage(90, 0.6, 0);
+    const pPos = this.player.mesh.position;
+    let hooked = false;
+
+    targets.forEach(t => {
+      if (t.isDead) return;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (!tPos) return;
+      const toT = new THREE.Vector3().subVectors(tPos, pPos);
+      const dist = toT.length();
+      if (dist <= 11.0 && toT.normalize().dot(dir) > 0.5) {
+        t.takeDamage(damage, this.vfx);
+        // Kéo mục tiêu về cự ly cận chiến của Darius
+        if (t.mesh) {
+          t.mesh.position.copy(pPos.clone().addScaledVector(dir, 2.2));
+        }
+        this.vfx.spawnIceExplosion(tPos, 0xdc2626, 18);
+        hooked = true;
+      }
+    });
+
+    if (hooked) {
+      this.vfx.spawnDamageNumber('BẮT GIỮ!', this.player.mesh.position, 'crit');
+    }
+  }
+
+  // Darius R: Máy Chém Noxus (Noxian Guillotine - Sát thương chuẩn kết liễu)
+  castDariusR(targetPoint, targets) {
+    let target = null;
+    let minDist = 12.0;
+    for (const t of targets) {
+      if (t.isDead) continue;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(targetPoint) < minDist) {
+        minDist = tPos.distanceTo(targetPoint);
+        target = t;
+      }
+    }
+
+    if (!target) {
+      this.castExecuteSlam(targetPoint, this.getScaledDamage(380, 1.6, 0), targets);
+      return;
+    }
+
+    const tPos = target.mesh ? target.mesh.position : target.group.position;
+    this.player.mesh.position.copy(tPos.clone().add(new THREE.Vector3(0, 0, 1.4)));
+    this.player.targetPos = null;
+
+    this.sounds.playUlt();
+    const trueDamage = this.getScaledDamage(420, 1.8, 0);
+
+    // Bỏ qua giáp (True Damage): gây sát thương trực tiếp
+    target.hp = Math.max(0, target.hp - trueDamage);
+    if (target.healthBar) target.healthBar.updateBar(target.hp, target.maxHp);
+    this.vfx.spawnIceExplosion(tPos, 0xdc2626, 40);
+    this.vfx.spawnDamageNumber(`SÁT THƯƠNG CHUẨN! -${trueDamage}`, tPos, 'crit');
+
+    if (target.hp <= 0 && target.die) {
+      target.die(this.vfx);
+      this.cooldowns.R = 0; // Hồi lại chiêu khi kết liễu mục tiêu thành công!
+      this.vfx.spawnDamageNumber('HỒI CHIÊU MÁY CHÉM NOXUS!', this.player.mesh.position, 'heal');
+    }
+  }
+
+  // Akali R: Sát Chiêu Hoàn Hảo (Perfect Execution - Lướt chém xuyên mục tiêu)
+  castAkaliR(targetPoint, targets) {
+    const pPos = this.player.mesh.position;
+    const dir = new THREE.Vector3().subVectors(targetPoint, pPos);
+    dir.y = 0;
+    dir.normalize();
+
+    const dest = pPos.clone().addScaledVector(dir, 14.0);
+    dest.x = Math.max(-11, Math.min(11, dest.x));
+    dest.z = Math.max(-115, Math.min(115, dest.z));
+
+    this.player.mesh.position.copy(dest);
+    this.player.targetPos = null;
+
+    this.sounds.playUlt();
+    this.vfx.spawnIceExplosion(pPos, 0x10b981, 20);
+    this.vfx.spawnIceExplosion(dest, 0x059669, 25);
+
+    const damage = this.getScaledDamage(350, 1.2, 1.0);
+    targets.forEach(t => {
+      if (t.isDead) return;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(dest) <= 5.5) {
+        t.takeDamage(damage, this.vfx);
+        this.vfx.spawnIceExplosion(tPos, 0x10b981, 15);
+      }
+    });
+  }
+
+  // Ahri E: Hôn Gió (Charm - Bắn trái tim pha lê hồng)
+  castAhriE(dir) {
+    const damage = this.getScaledDamage(120, 0, 0.7);
+    this.castProjectile({
+      dir,
+      speed: 30,
+      range: 28,
+      damage,
+      color: 0xf472b6,
+      emissive: 0xf472b6,
+      scale: 0.6,
+      charm: true
+    });
+    this.sounds.playCastQ();
+  }
+
+  // Ashe Q: Chú Tâm Tiễn (Bắn loạt 5 mũi tên băng liên hoàn)
+  castAsheQ(dir) {
+    const damage = this.getScaledDamage(45, 0.35, 0);
+    for (let i = -2; i <= 2; i++) {
+      setTimeout(() => {
+        const spread = i * 0.05;
+        const shootDir = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
+        this.castProjectile({
+          dir: shootDir,
+          speed: 36,
+          range: 28,
+          damage,
+          color: 0x67e8f9,
+          emissive: 0x38bdf8,
+          scale: 0.4
+        });
+        this.sounds.playCastQ();
+      }, (i + 2) * 50);
+    }
+  }
+
+  // Ashe E: Ưng Tiễn (Chim ưng do thám)
+  castAsheE(dir) {
+    this.castProjectile({
+      dir,
+      speed: 40,
+      range: 180,
+      damage: 10,
+      color: 0xe0f2fe,
+      emissive: 0x38bdf8,
+      scale: 0.8,
+      pierce: 99
+    });
+    this.sounds.playUlt();
+  }
+
+  // Darius W: Đánh Thọt (Cường hóa chém rìu làm chậm 90%)
+  castDariusW(targets) {
+    const damage = this.getScaledDamage(120, 1.5, 0);
+    let hit = false;
+    targets.forEach(t => {
+      if (t.isDead) return;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(this.player.mesh.position) <= 4.2) {
+        t.takeDamage(damage, this.vfx);
+        this.vfx.spawnIceExplosion(tPos, 0xdc2626, 15);
+        hit = true;
+      }
+    });
+    this.sounds.playHit();
+    if (hit) this.vfx.spawnDamageNumber('LÀM CHẬM 90%!', this.player.mesh.position, 'crit');
+  }
+
+  // Zed E: Đường Kiếm Bóng Tối (Xoay lưỡi kiếm bóng tối)
+  castZedE(targets) {
+    const damage = this.getScaledDamage(95, 1.0, 0);
+    this.vfx.spawnIceExplosion(this.player.mesh.position, 0x9333ea, 25);
+    this.sounds.playHit();
+    targets.forEach(t => {
+      if (t.isDead) return;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(this.player.mesh.position) <= 4.5) {
+        t.takeDamage(damage, this.vfx);
+      }
+    });
+  }
+
+  // Ezreal W: Tinh Hoa Tuôn Chảy
+  castEzrealW(dir) {
+    const damage = this.getScaledDamage(100, 0.6, 0.8);
+    this.castProjectile({
+      dir,
+      speed: 32,
+      range: 28,
+      damage,
+      color: 0xfacc15,
+      emissive: 0xfde047,
+      scale: 0.55,
+      pierce: 1
+    });
+    this.sounds.playCastQ();
+  }
+
+  // Lux W: Lăng Kính Phòng Hộ (Tạo lớp khiên bảo hộ)
+  castLuxW(dir) {
+    const shield = this.getScaledDamage(200, 0, 0.75);
+    this.player.heal(shield, this.vfx);
+    this.vfx.spawnIceExplosion(this.player.mesh.position, 0xfef08a, 20);
+    this.sounds.playHeal();
+  }
+
+  // Ahri W: Lửa Hồ Ly (3 ngọn lửa tự nhắm địch)
+  castAhriW(targets) {
+    const damage = this.getScaledDamage(65, 0, 0.35);
+    for (let i = 0; i < 3; i++) {
+      setTimeout(() => {
+        let nearest = null;
+        let minDist = 16.0;
+        targets.forEach(t => {
+          if (t.isDead) return;
+          const pos = t.mesh ? t.mesh.position : t.group?.position;
+          if (pos) {
+            const d = pos.distanceTo(this.player.mesh.position);
+            if (d < minDist) { minDist = d; nearest = t; }
+          }
+        });
+        if (nearest) {
+          const tPos = nearest.mesh ? nearest.mesh.position : nearest.group.position;
+          const d = new THREE.Vector3().subVectors(tPos, this.player.mesh.position).normalize();
+          this.castProjectile({
+            dir: d,
+            speed: 32,
+            range: 20,
+            damage,
+            color: 0x38bdf8,
+            emissive: 0x67e8f9,
+            scale: 0.35
+          });
+          this.sounds.playCastQ();
+        }
+      }, i * 120);
+    }
+  }
+
+  // Ahri R: Phi Hồ (Lướt nhanh)
+  castAhriR(targetPoint, targets) {
+    const damage = this.getScaledDamage(180, 0, 0.6);
+    this.castBlink(targetPoint, 8.5, damage, targets);
+  }
+
+  // Malphite W: Nắm Đấm Chấn Động
+  castMalphiteW() {
+    this.player.armor += 30;
+    this.vfx.spawnDamageNumber('+30 GIÁP!', this.player.mesh.position, 'heal');
+    this.vfx.spawnIceExplosion(this.player.mesh.position, 0xca8a04, 15);
+    this.sounds.playHeal();
+    setTimeout(() => {
+      this.player.armor = Math.max(28, this.player.armor - 30);
+    }, 6000);
+  }
+
+  // Malphite E: Dậm Đất (Đập tay địa chấn)
+  castMalphiteE(targets) {
+    const damage = this.getScaledDamage(120, 0, 0.6) + Math.round(this.player.armor * 0.4);
+    this.vfx.spawnIceExplosion(this.player.mesh.position, 0x78716c, 25);
+    this.sounds.playHit();
+    targets.forEach(t => {
+      if (t.isDead) return;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(this.player.mesh.position) <= 5.0) {
+        t.takeDamage(damage, this.vfx);
+      }
+    });
+  }
+
+  // Nautilus E: Thủy Triều Dữ Dội (Sóng nước lan tỏa)
+  castNautilusE(targets) {
+    const damage = this.getScaledDamage(130, 0, 0.7);
+    this.vfx.spawnIceExplosion(this.player.mesh.position, 0x0284c7, 30);
+    this.sounds.playHit();
+    targets.forEach(t => {
+      if (t.isDead) return;
+      const tPos = t.mesh ? t.mesh.position : t.group?.position;
+      if (tPos && tPos.distanceTo(this.player.mesh.position) <= 5.5) {
+        t.takeDamage(damage, this.vfx);
+      }
+    });
+  }
+
+  // Nautilus R: Thủy Lôi Tầm Nhiệt
+  castNautilusR(targetPoint, targets) {
+    this.castExecuteSlam(targetPoint, this.getScaledDamage(450, 0, 0.9), targets);
+  }
+
+  // Cho'Gath W: Tiếng Gầm Hoang Dã (Sóng âm hình nón)
+  castChogathW(dir, targets) {
+    this.castConeKnockback(dir, targets);
+  }
+
+  // Cho'Gath E: Phóng Gai
+  castChogathE(dir) {
+    const damage = this.getScaledDamage(80, 0.4, 0.4);
+    this.castProjectile({
+      dir,
+      speed: 32,
+      range: 22,
+      damage,
+      color: 0x15803d,
+      emissive: 0x4ade80,
+      scale: 0.5,
+      pierce: 3
+    });
+    this.sounds.playCastQ();
+  }
+
+  // Katarina Q: Phi Dao (Ném dao găm)
+  castKatarinaQ(dir, targets) {
+    const damage = this.getScaledDamage(100, 0, 0.65);
+    this.castProjectile({
+      dir,
+      speed: 34,
+      range: 24,
+      damage,
+      color: 0xef4444,
+      emissive: 0xf87171,
+      scale: 0.4,
+      pierce: 3
+    });
+    this.sounds.playCastQ();
+  }
+
+  // Katarina W: Tung Hứng (Tăng tốc chạy)
+  castKatarinaW() {
+    this.player.speed += 4.0;
+    this.vfx.spawnDamageNumber('+TỐC ĐỘ CHẠY!', this.player.mesh.position, 'heal');
+    this.sounds.playMove();
+    setTimeout(() => {
+      this.player.speed = Math.max(13.0, this.player.speed - 4.0);
+    }, 3000);
+  }
+
+  // Akali Q: Phi Đao Năm Cánh
+  castAkaliQ(dir) {
+    const damage = this.getScaledDamage(110, 0.7, 0.6);
+    for (let i = -2; i <= 2; i++) {
+      const spread = i * 0.12;
+      const shootDir = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
+      this.castProjectile({
+        dir: shootDir,
+        speed: 32,
+        range: 16,
+        damage,
+        color: 0x10b981,
+        emissive: 0x34d399,
+        scale: 0.35
+      });
+    }
+    this.sounds.playCastQ();
+  }
+
+  // Akali W: Bom Khói
+  castAkaliW(targetPoint) {
+    this.castAoEZone(targetPoint, 4.5, 50, 0x064e3b);
+    this.vfx.spawnDamageNumber('BOM KHÓI TÀNG HÌNH!', this.player.mesh.position, 'heal');
+  }
+
+  // Syndra Q: Quả Cầu Bóng Tối
+  castSyndraQ(targetPoint) {
+    const damage = this.getScaledDamage(120, 0, 0.75);
+    this.castAoEZone(targetPoint, 3.5, damage, 0x7c3aed);
+  }
+
+  // Syndra W: Ý Lực
+  castSyndraW(targetPoint) {
+    const damage = this.getScaledDamage(140, 0, 0.85);
+    this.castAoEZone(targetPoint, 4.0, damage, 0x6d28d9);
+  }
+
+  // Syndra R: Bùng Nổ Sức Mạnh (Bão cầu ma thuật)
+  castSyndraR(targetPoint, targets) {
+    this.castExecuteSlam(targetPoint, this.getScaledDamage(550, 0, 1.2), targets);
   }
 }

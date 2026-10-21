@@ -4,17 +4,19 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { HowlingAbyssMap } from './map.js';
 import { VFXSystem } from './vfx.js';
-import { PlayerChampion, EnemyBot, Structure, Minion } from './champion.js';
+import { PlayerChampion, EnemyBot, Structure, Minion, setupLoaders, loadDataDragonChampions } from './champion.js';
+import { preloadAllModels } from './model_cache.js';
 import { SkillSystem } from './skills.js';
 import { sounds } from './audio.js';
 import { SKILL_CATALOG, getAllSkills } from './skill_catalog.js';
 import { ITEMS_CATALOG, getItemById } from './items.js';
+import { ARAM_MAYHEM_AUGMENTS, getRandomMayhemAugments, getAugmentById } from './augments.js';
 
 // 1. Scene, Camera, Renderer Setup
 const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1a1518);
-scene.fog = new THREE.FogExp2(0x271f24, 0.008);
+scene.background = new THREE.Color(0x060c18);
+scene.fog = new THREE.FogExp2(0x0a1628, 0.007);
 
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 350);
 const cameraOffset = new THREE.Vector3(0, 24, 22);
@@ -27,6 +29,20 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.35;
 container.appendChild(renderer.domElement);
+
+// Setup KTX2 & Draco loaders for official League models
+setupLoaders(renderer);
+
+// Preload all 12 League 3D models into RAM for 0ms instant clones
+preloadAllModels();
+
+// Nạp chỉ số tướng chuẩn Data Dragon 14.5.1 từ Riot Games CDN
+loadDataDragonChampions().then(() => {
+  if (typeof player !== 'undefined' && player) {
+    player.setHeroProfile(player.heroType);
+    recalcPlayerStats();
+  }
+});
 
 // Post-processing Bloom
 const composer = new EffectComposer(renderer);
@@ -41,11 +57,11 @@ const bloomPass = new UnrealBloomPass(
 );
 composer.addPass(bloomPass);
 
-// 2. Lighting (Adversator Sunset Atmosphere)
-const ambientLight = new THREE.AmbientLight(0x64748b, 1.4);
+// 2. Lighting (Howling Abyss Arctic Atmosphere matching Image 2)
+const ambientLight = new THREE.AmbientLight(0x93c5fd, 1.3);
 scene.add(ambientLight);
 
-const sunLight = new THREE.DirectionalLight(0xfff2d6, 2.5);
+const sunLight = new THREE.DirectionalLight(0xe0f2fe, 2.8);
 sunLight.position.set(-25, 45, 30);
 sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 2048;
@@ -59,6 +75,11 @@ sunLight.shadow.camera.top = d;
 sunLight.shadow.camera.bottom = -d;
 sunLight.shadow.bias = -0.0005;
 scene.add(sunLight);
+
+// Upward blue soul-glow from the bottom of the Howling Abyss
+const abyssLight = new THREE.DirectionalLight(0x0284c7, 0.9);
+abyssLight.position.set(0, -30, 0);
+scene.add(abyssLight);
 
 // 3. Map & World Entities
 const map = new HowlingAbyssMap(scene);
@@ -96,6 +117,7 @@ const enemyBots = [
 let alliedMinions = [];
 let enemyMinions = [];
 let minionProjectiles = [];
+let playerProjectiles = []; // Đạn đánh thường của Tướng người chơi (Ashe, Jinx)
 let waveTimer = 0;
 
 function spawnMinionWave(initial = false) {
@@ -144,6 +166,43 @@ function updateMouseGround(event) {
   raycaster.ray.intersectPlane(groundPlane, mouseWorldPos);
 }
 
+// Tìm kiếm mục tiêu địch dưới con trỏ chuột (Bot địch, Lính địch, Trụ địch)
+function findTargetUnderMouse() {
+  const clickableObjects = [];
+  const objectMap = new Map();
+
+  for (const bot of enemyBots) {
+    if (!bot.isDead) {
+      clickableObjects.push(bot.mesh);
+      objectMap.set(bot.mesh, bot);
+    }
+  }
+  for (const m of enemyMinions) {
+    if (!m.isDead) {
+      clickableObjects.push(m.mesh);
+      objectMap.set(m.mesh, m);
+    }
+  }
+  for (const s of redStructures) {
+    if (!s.isDestroyed) {
+      clickableObjects.push(s.group);
+      objectMap.set(s.group, s);
+    }
+  }
+
+  const intersects = raycaster.intersectObjects(clickableObjects, true);
+  if (intersects.length > 0) {
+    let root = intersects[0].object;
+    while (root && !objectMap.has(root) && root.parent) {
+      root = root.parent;
+    }
+    if (objectMap.has(root)) {
+      return objectMap.get(root);
+    }
+  }
+  return null;
+}
+
 window.addEventListener('mousemove', (e) => {
   updateMouseGround(e);
   if (skills.activeAimSkill) {
@@ -154,31 +213,76 @@ window.addEventListener('mousemove', (e) => {
 let isPointerDragging = false;
 
 window.addEventListener('pointerdown', (e) => {
-  // If clicking on UI (HUD, modals, buttons), ignore game ground move
-  if (e.target && e.target.closest && (e.target.closest('.moba-hud') || e.target.closest('.skill-modal-content') || e.target.closest('.shop-modal-content') || e.target.closest('.top-header'))) {
+  // If clicking on UI (HUD, modals, buttons, cards), ignore 3D game ground action
+  if (e.target && e.target.closest && (
+    e.target.closest('.moba-hud') ||
+    e.target.closest('.skill-modal-content') ||
+    e.target.closest('.skill-modal-backdrop') ||
+    e.target.closest('.shop-modal-content') ||
+    e.target.closest('.shop-modal-backdrop') ||
+    e.target.closest('.augment-modal-content') ||
+    e.target.closest('.augment-modal-backdrop') ||
+    e.target.closest('.top-header') ||
+    e.target.closest('button') ||
+    e.target.closest('.modal-content')
+  )) {
     return;
   }
 
-  // Right-click OR Left-click (when not aiming a skillshot)
-  if (e.button === 2 || (e.button === 0 && !skills.activeAimSkill)) {
-    isPointerDragging = true;
-    sounds.ensureContext();
-    updateMouseGround(e);
-    player.moveTo(mouseWorldPos);
-    vfx.spawnClickMarker(mouseWorldPos.x, mouseWorldPos.z);
-    sounds.playMove();
+  sounds.ensureContext();
+  updateMouseGround(e);
+
+  // LOGIC LIÊN MINH HUYỀN THOẠI (League of Legends Controls):
+  // 1. CHUỘT PHẢI (e.button === 2): Di chuyển (Move) & Đánh thường (Auto Attack) kẻ địch
+  if (e.button === 2) {
+    const clickedEnemy = findTargetUnderMouse();
+    if (clickedEnemy) {
+      player.autoAttackTarget = clickedEnemy;
+      player.targetPos = null;
+      const targetPos = clickedEnemy.mesh ? clickedEnemy.mesh.position : clickedEnemy.group.position;
+      vfx.spawnClickMarker(targetPos.x, targetPos.z, 'attack');
+      sounds.playMove();
+    } else {
+      player.autoAttackTarget = null;
+      isPointerDragging = true; // Cho phép giữ chuột phải để di chuyển liên tục
+      player.moveTo(mouseWorldPos);
+      vfx.spawnClickMarker(mouseWorldPos.x, mouseWorldPos.z, 'move');
+      sounds.playMove();
+    }
+    return;
+  }
+
+  // 2. CHUỘT TRÁI (e.button === 0): Dùng để CHỌN (Select / UI), KHÔNG di chuyển tướng
+  if (e.button === 0) {
+    if (skills.activeAimSkill) {
+      // Nếu đang bật ngắm kỹ năng định hướng -> Click chuột trái để xác nhận tung chiêu
+      const enemies = getAllEnemies();
+      skills.cast(skills.activeAimSkill, mouseWorldPos, enemies);
+      skills.activeAimSkill = null;
+    } else {
+      // Click chuột trái vào kẻ địch -> Chọn mục tiêu để hiển thị thông tin
+      const clickedEnemy = findTargetUnderMouse();
+      if (clickedEnemy) {
+        vfx.spawnDamageNumber('🎯 ĐÃ CHỌN', clickedEnemy.mesh ? clickedEnemy.mesh.position : clickedEnemy.group.position, 'normal');
+      }
+      // Click chuột trái vào mặt đất: KHÔNG di chuyển tướng (chuẩn 100% LMHT)
+    }
+    return;
   }
 });
 
 window.addEventListener('pointermove', (e) => {
-  if (isPointerDragging) {
+  // Chỉ khi đang giữ chuột phải (e.buttons & 2) thì mới di chuyển liên tục theo chuột
+  if (isPointerDragging && (e.buttons & 2)) {
     updateMouseGround(e);
     player.moveTo(mouseWorldPos);
   }
 });
 
-window.addEventListener('pointerup', () => {
-  isPointerDragging = false;
+window.addEventListener('pointerup', (e) => {
+  if (e.button === 2) {
+    isPointerDragging = false;
+  }
 });
 
 window.addEventListener('contextmenu', (e) => {
@@ -193,6 +297,12 @@ window.addEventListener('keydown', (e) => {
     castSkillSlot(key);
   } else if (key === 'P') {
     toggleShopModal();
+  } else if (key === 'N') {
+    openAugmentModal();
+  } else if (key === 'A' || key === 'C') {
+    // Phím A hoặc C: Bật / tắt vòng tầm đánh chuẩn LMHT
+    const isVisible = player.toggleRangeRing();
+    vfx.spawnDamageNumber(isVisible ? `🎯 TẦM ĐÁNH: ${player.rangeLol}` : 'ẨN TẦM ĐÁNH', player.mesh.position, 'heal');
   } else if (e.code === 'Space') {
     camera.position.copy(player.mesh.position).add(cameraOffset);
   }
@@ -225,8 +335,10 @@ function recalcPlayerStats() {
   let addAd = 0;
   let addAp = 0;
   let addArmor = 0;
+  let addMr = 0;
   let addSpeed = 0;
   let addLifesteal = 0;
+  let addCrit = 0;
   let addHp = 0;
   let addMp = 0;
 
@@ -234,40 +346,121 @@ function recalcPlayerStats() {
     if (item.stats.ad) addAd += item.stats.ad;
     if (item.stats.ap) addAp += item.stats.ap;
     if (item.stats.armor) addArmor += item.stats.armor;
+    if (item.stats.mr) addMr += item.stats.mr;
     if (item.stats.speed) addSpeed += item.stats.speed;
     if (item.stats.lifesteal) addLifesteal += item.stats.lifesteal;
+    if (item.stats.crit) addCrit += item.stats.crit;
     if (item.stats.hp) addHp += item.stats.hp;
     if (item.stats.mana) addMp += item.stats.mana;
   });
 
-  player.ad = player.baseAd + addAd;
-  player.ap = player.baseAp + addAp;
-  player.armor = player.baseArmor + addArmor;
-  player.speed = player.baseSpeed + addSpeed;
+  // Áp dụng chỉ số và hiệu ứng từ Lõi Nâng Cấp ARAM Mayhem
+  let augAdPercent = 0;
+  let augApPercent = 0;
+  let augScaleModel = 1.0;
+
+  if (player.augments && player.augments.length > 0) {
+    player.augments.forEach(aug => {
+      const s = aug.stats || {};
+      if (s.ad) addAd += s.ad;
+      if (s.ap) addAp += s.ap;
+      if (s.armor) addArmor += s.armor;
+      if (s.mr) addMr += s.mr;
+      if (s.speed) addSpeed += s.speed;
+      if (s.crit) addCrit += s.crit;
+      if (s.hp) addHp += s.hp;
+      if (s.lifesteal) addLifesteal += s.lifesteal;
+      if (s.adPercent) augAdPercent += s.adPercent;
+      if (s.apPercent) augApPercent += s.apPercent;
+      if (s.scaleModel && s.scaleModel > augScaleModel) augScaleModel = s.scaleModel;
+      if (s.cdrQ) skills.maxCooldowns.Q = Math.max(0.5, skills.maxCooldowns.Q * (1 - s.cdrQ));
+      if (s.cdrW) skills.maxCooldowns.W = Math.max(1.0, skills.maxCooldowns.W * (1 - s.cdrW));
+      if (s.cdrE) skills.maxCooldowns.E = Math.max(0.5, skills.maxCooldowns.E * (1 - s.cdrE));
+      if (s.cdrAll) {
+        ['Q', 'W', 'E', 'R'].forEach(k => {
+          skills.maxCooldowns[k] = Math.max(1.0, skills.maxCooldowns[k] * (1 - s.cdrAll));
+        });
+      }
+    });
+  }
+
+  player.ad = Math.round((player.baseAd + addAd) * (1 + augAdPercent));
+  player.ap = Math.round((player.baseAp + addAp) * (1 + augApPercent));
+  player.armor = Math.round(player.baseArmor + addArmor);
+  player.mr = Math.round((player.baseMr || 30) + (addMr || 0));
+  player.speed = +(player.baseSpeed + addSpeed).toFixed(2);
   player.lifesteal = player.baseLifesteal + addLifesteal;
-  player.maxHp = player.baseMaxHp + addHp;
-  player.maxMp = player.baseMaxMp + addMp;
+  player.crit = addCrit;
+  player.maxHp = Math.round(player.baseMaxHp + addHp);
+  player.maxMp = Math.round(player.baseMaxMp + addMp);
 
-  // Update Stats UI
-  document.getElementById('stat-ad').textContent = player.ad;
-  document.getElementById('stat-armor').textContent = player.armor;
-  document.getElementById('stat-ap').textContent = player.ap;
-  document.getElementById('stat-spd').textContent = player.speed.toFixed(1);
-  document.getElementById('stat-lifesteal').textContent = `${Math.round(player.lifesteal * 100)}%`;
+  // Hiệu ứng phóng to mô hình tướng (Khổng Lồ Hóa / Goliath)
+  if (player.modelRoot && augScaleModel > 1.0) {
+    const s = 1.05 * augScaleModel;
+    player.modelRoot.scale.set(s, s, s);
+  }
 
-  // Update 6 Inventory Slots UI
+  // Update Stats UI (Chuẩn Riot Data Dragon 14.5.1)
+  const statAdEl = document.getElementById('stat-ad');
+  if (statAdEl) statAdEl.textContent = player.ad;
+
+  const statArmorEl = document.getElementById('stat-armor');
+  if (statArmorEl) statArmorEl.textContent = player.armor;
+
+  const statMrEl = document.getElementById('stat-mr');
+  if (statMrEl) statMrEl.textContent = player.mr || player.baseMr || 30;
+
+  const statApEl = document.getElementById('stat-ap');
+  if (statApEl) statApEl.textContent = player.ap;
+
+  const statAsEl = document.getElementById('stat-as');
+  if (statAsEl) statAsEl.textContent = player.baseAttackSpeed || '0.65';
+
+  const statSpdEl = document.getElementById('stat-spd');
+  if (statSpdEl) statSpdEl.textContent = `${player.movespeedLol || Math.round(player.speed * 25)}`;
+
+  const statLifestealEl = document.getElementById('stat-lifesteal');
+  if (statLifestealEl) statLifestealEl.textContent = `${Math.round(player.lifesteal * 100)}%`;
+
+  const statRangeEl = document.getElementById('stat-range');
+  if (statRangeEl && player.rangeLol) {
+    statRangeEl.textContent = `${player.rangeLol} (${player.attackType === 'ranged' ? 'Xa' : 'Gần'})`;
+  }
+
+  const hudLvlEl = document.getElementById('hud-level');
+  if (hudLvlEl) hudLvlEl.textContent = player.level || 1;
+
+  // Update 6 Inventory Slots UI với ảnh icon chính thức từ Riot Games
   for (let i = 0; i < 6; i++) {
     const slotEl = document.querySelector(`.inv-slot[data-slot="${i}"] .inv-inner`);
     if (slotEl) {
       if (player.inventory[i]) {
         const it = player.inventory[i];
-        slotEl.style.backgroundImage = "url('/items.jpg')";
-        slotEl.style.backgroundSize = '900% 400%';
-        slotEl.style.backgroundPosition = `${(it.iconCol * 100) / 8}% ${(it.iconRow * 100) / 3}%`;
+        slotEl.style.backgroundImage = 'none';
+        slotEl.innerHTML = `<img src="${it.iconImg}" style="width:100%;height:100%;object-fit:cover;border-radius:4px;display:block;" alt="${it.name}" />`;
         slotEl.parentElement.title = `${it.name} (Click để mở shop bán lại)`;
       } else {
         slotEl.style.backgroundImage = 'none';
+        slotEl.innerHTML = '';
         slotEl.parentElement.title = `Ô ${i + 1} trống`;
+      }
+    }
+  }
+
+  // Update 4 Augment Slots UI
+  for (let i = 0; i < 4; i++) {
+    const slotEl = document.getElementById(`aug-slot-${i}`);
+    if (slotEl) {
+      slotEl.className = 'aug-slot';
+      const inner = slotEl.querySelector('.aug-inner');
+      if (player.augments && player.augments[i]) {
+        const aug = player.augments[i];
+        slotEl.classList.add(`rarity-${aug.rarity.toLowerCase()}`);
+        if (inner) inner.innerHTML = `<img src="${aug.iconImg}" alt="${aug.name}" />`;
+        slotEl.title = `[${aug.rarity}] ${aug.name}\n${aug.desc}`;
+      } else {
+        if (inner) inner.innerHTML = '';
+        slotEl.title = `Ô Lõi ${i + 1} (Trống - Bấm N để chọn)`;
       }
     }
   }
@@ -346,7 +539,7 @@ function renderShopGrid() {
 
     card.innerHTML = `
       <div class="card-top">
-        <div class="card-thumb" style="background-image: url('/items.jpg'); background-size: 900% 400%; background-position: ${(it.iconCol * 100) / 8}% ${(it.iconRow * 100) / 3}%;"></div>
+        <img class="card-thumb" src="${it.iconImg}" style="width:42px;height:42px;border-radius:4px;object-fit:cover;border:1px solid #0284c7;" alt="${it.name}" />
         <div class="card-info">
           <div class="card-name">${it.name}</div>
           <div class="card-price">🪙 ${it.cost} G</div>
@@ -372,21 +565,22 @@ function selectShopItem(it, invIdx = null) {
   detailName.textContent = it.name;
   detailCost.textContent = `${it.cost} G`;
 
-  detailIcon.style.backgroundImage = "url('/items.jpg')";
-  detailIcon.style.backgroundSize = '900% 400%';
-  detailIcon.style.backgroundPosition = `${(it.iconCol * 100) / 8}% ${(it.iconRow * 100) / 3}%`;
+  detailIcon.style.backgroundImage = 'none';
+  detailIcon.innerHTML = `<img src="${it.iconImg}" style="width:100%;height:100%;border-radius:6px;object-fit:cover;" alt="${it.name}" />`;
 
   // Stats text
   const statParts = [];
-  if (it.stats.ad) statParts.push(`+ ${it.stats.ad} Sát thương Vật Lý`);
-  if (it.stats.ap) statParts.push(`+ ${it.stats.ap} Sức mạnh Phép Thuật`);
+  if (it.stats.ad) statParts.push(`+ ${it.stats.ad} Sát thương Công Kích (AD)`);
+  if (it.stats.ap) statParts.push(`+ ${it.stats.ap} Sức mạnh Phép Thuật (AP)`);
   if (it.stats.armor) statParts.push(`+ ${it.stats.armor} Giáp Vật Lý`);
   if (it.stats.hp) statParts.push(`+ ${it.stats.hp} Máu Tối Đa`);
-  if (it.stats.mana) statParts.push(`+ ${it.stats.mana} Mana Tối Đa`);
-  if (it.stats.speed) statParts.push(`+ ${it.stats.speed} Tốc Độ Chạy`);
+  if (it.stats.mana) statParts.push(`+ ${it.stats.mana} Năng Lượng (Mana)`);
+  if (it.stats.speed) statParts.push(`+ ${it.stats.speed} Tốc Độ Di Chuyển`);
   if (it.stats.lifesteal) statParts.push(`+ ${Math.round(it.stats.lifesteal * 100)}% Hút Máu`);
+  if (it.stats.crit) statParts.push(`+ ${Math.round(it.stats.crit * 100)}% Tỉ Lệ Chí Mạng`);
+  if (it.stats.hpRestore) statParts.push(`Hồi phục ${it.stats.hpRestore} Máu khi kích hoạt`);
 
-  detailStats.innerHTML = statParts.length > 0 ? statParts.join('<br>') : 'Không có chỉ số vĩnh viễn (Vật phẩm tiêu hao).';
+  detailStats.innerHTML = statParts.length > 0 ? statParts.join('<br>') : 'Vật phẩm tiêu hao đặc biệt.';
   detailDesc.textContent = it.desc;
 
   // Buy button state
@@ -415,13 +609,14 @@ btnBuy.addEventListener('click', () => {
 
   if (selectedShopItem.category === 'CONSUMABLE') {
     player.gold -= selectedShopItem.cost;
-    if (selectedShopItem.id === 'health_potion') {
-      player.heal(350, vfx);
-    } else if (selectedShopItem.id === 'mana_potion') {
-      player.mp = Math.min(player.maxMp, player.mp + 250);
-      vfx.spawnDamageNumber('+250 MP', player.mesh.position, 'heal');
+    if (selectedShopItem.stats.hpRestore) {
+      player.heal(selectedShopItem.stats.hpRestore, vfx);
+    } else if (selectedShopItem.stats.mana) {
+      player.mp = Math.min(player.maxMp, player.mp + selectedShopItem.stats.mana);
+      vfx.spawnDamageNumber(`+${selectedShopItem.stats.mana} MP`, player.mesh.position, 'heal');
     }
     sounds.playHeal();
+    vfx.spawnDamageNumber(`SỬ DỤNG: ${selectedShopItem.name}`, player.mesh.position, 'heal');
   } else {
     if (player.inventory.length >= 6) {
       alert('Túi đồ đã đầy (tối đa 6 ô trang bị)!');
@@ -430,6 +625,7 @@ btnBuy.addEventListener('click', () => {
     player.gold -= selectedShopItem.cost;
     player.inventory.push(selectedShopItem);
     sounds.playHeal();
+    vfx.spawnDamageNumber(`ĐÃ MUA: ${selectedShopItem.name}!`, player.mesh.position, 'heal');
   }
 
   recalcPlayerStats();
@@ -449,6 +645,166 @@ btnSell.addEventListener('click', () => {
     selectShopItem(selectedShopItem);
   }
 });
+
+// 6.5 ARAM MAYHEM AUGMENTS MODAL (Official CommunityDragon Cherry Augments)
+const augmentModal = document.getElementById('augment-modal');
+const btnOpenAugments = document.getElementById('btn-open-augments');
+const btnCloseAugModal = document.getElementById('btn-close-augment-modal');
+const btnRerollAug = document.getElementById('btn-reroll-augment');
+const augmentCardsContainer = document.getElementById('augment-cards-container');
+const rerollCountEl = document.getElementById('reroll-count');
+
+let currentAugmentChoices = [];
+
+function openAugmentModal() {
+  if (!augmentModal) return;
+  if (!player.augments) player.augments = [];
+  if (player.augments.length >= 4) {
+    alert('Bạn đã sở hữu tối đa 4 Lõi Nâng Cấp ARAM Mayhem!');
+    return;
+  }
+
+  if (currentAugmentChoices.length === 0) {
+    const ownedIds = player.augments.map(a => a.id);
+    currentAugmentChoices = getRandomMayhemAugments(3, ownedIds);
+  }
+
+  renderAugmentChoices();
+  updateRerollButton();
+  augmentModal.classList.remove('hidden');
+  augmentModal.style.display = 'flex';
+}
+
+function closeAugmentModal() {
+  if (augmentModal) {
+    augmentModal.classList.add('hidden');
+    augmentModal.style.display = 'none';
+  }
+}
+
+function updateRerollButton() {
+  if (!rerollCountEl || !btnRerollAug) return;
+  rerollCountEl.textContent = player.rerollsLeft;
+  if (player.rerollsLeft <= 0) {
+    btnRerollAug.classList.add('disabled');
+  } else {
+    btnRerollAug.classList.remove('disabled');
+  }
+}
+
+function rerollAugments() {
+  if (player.rerollsLeft <= 0) return;
+  player.rerollsLeft--;
+  sounds.playMove();
+  const ownedIds = (player.augments || []).map(a => a.id);
+  currentAugmentChoices = getRandomMayhemAugments(3, ownedIds);
+  renderAugmentChoices();
+  updateRerollButton();
+  vfx.spawnDamageNumber('🎲 ĐÃ ĐỔI LẠI LÕI!', player.mesh.position, 'heal');
+}
+
+function renderAugmentChoices() {
+  if (!augmentCardsContainer) return;
+  augmentCardsContainer.innerHTML = '';
+
+  const rarityMap = {
+    SILVER: { label: 'BẠC (SILVER)', cls: 'rarity-silver' },
+    GOLD: { label: 'VÀNG (GOLD)', cls: 'rarity-gold' },
+    PRISMATIC: { label: 'KIM CƯƠNG (PRISMATIC)', cls: 'rarity-prismatic' }
+  };
+
+  currentAugmentChoices.forEach(aug => {
+    const info = rarityMap[aug.rarity] || rarityMap.SILVER;
+    const card = document.createElement('div');
+    card.className = `augment-card ${info.cls}`;
+
+    card.innerHTML = `
+      <div class="card-rarity-pill">${info.label}</div>
+      <div class="augment-icon-frame">
+        <img src="${aug.iconImg}" alt="${aug.name}" />
+      </div>
+      <div class="augment-card-name">${aug.name}</div>
+      <div class="augment-card-desc">${aug.desc || 'Tăng cường sức mạnh đặc biệt trong ARAM Hỗn Loạn.'}</div>
+      <button class="btn-select-aug" type="button">CHỌN NÂNG CẤP</button>
+    `;
+
+    const handleSelect = (e) => {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      selectAugment(aug);
+    };
+
+    card.addEventListener('click', handleSelect);
+    const selectBtn = card.querySelector('.btn-select-aug');
+    if (selectBtn) {
+      selectBtn.addEventListener('click', handleSelect);
+    }
+
+    augmentCardsContainer.appendChild(card);
+  });
+}
+
+function selectAugment(aug) {
+  if (!player.augments) player.augments = [];
+  if (player.augments.length >= 4) return;
+
+  player.augments.push(aug);
+  currentAugmentChoices = [];
+  closeAugmentModal();
+  sounds.playKill();
+  vfx.spawnDamageNumber(`✨ LÕI: ${aug.name}!`, player.mesh.position, 'crit');
+  recalcPlayerStats();
+
+  if (btnOpenAugments) {
+    if (player.augments.length >= 4) {
+      btnOpenAugments.textContent = '🎲 LÕI (4/4)';
+    } else {
+      btnOpenAugments.textContent = `🎲 CHỌN LÕI (${player.augments.length}/4)`;
+    }
+  }
+}
+
+if (augmentModal) {
+  augmentModal.addEventListener('pointerdown', (e) => e.stopPropagation());
+  augmentModal.addEventListener('click', (e) => {
+    if (e.target === augmentModal) {
+      closeAugmentModal();
+    }
+  });
+}
+
+if (btnOpenAugments) {
+  btnOpenAugments.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openAugmentModal();
+  });
+}
+if (btnCloseAugModal) {
+  btnCloseAugModal.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeAugmentModal();
+  });
+}
+if (btnRerollAug) {
+  btnRerollAug.addEventListener('click', (e) => {
+    e.stopPropagation();
+    rerollAugments();
+  });
+}
+
+// Cho phép click vào các ô Lõi trên HUD để mở bảng chọn lõi
+for (let i = 0; i < 4; i++) {
+  const slotEl = document.getElementById(`aug-slot-${i}`);
+  if (slotEl) {
+    slotEl.addEventListener('click', () => {
+      if (player.augments && player.augments.length < 4) {
+        openAugmentModal();
+      }
+    });
+  }
+}
 
 // Initialize stats
 recalcPlayerStats();
@@ -482,34 +838,67 @@ function updateHudSkills() {
     if (skill && slotEl) {
       const iconEl = slotEl.querySelector('.skill-icon');
       const manaEl = slotEl.querySelector('.skill-mana');
-      if (iconEl) iconEl.textContent = skill.icon;
+      if (iconEl) {
+        if (skill.iconImg) {
+          iconEl.innerHTML = `<img src="${skill.iconImg}" alt="${skill.name}" />`;
+        } else {
+          iconEl.textContent = skill.icon || skill.iconFallback || '⚡';
+        }
+      }
       if (manaEl) manaEl.textContent = skill.mana;
-      slotEl.title = `${slot}: ${skill.name} (${skill.hero})`;
+      slotEl.title = `${slot}: ${skill.name} (${skill.hero})\nHồi chiêu: ${skill.cd}s | Tiêu hao: ${skill.mana} Mana\n${skill.desc || ''}`;
     }
   });
+
+  // Snowball (Phím D)
+  if (iconD) {
+    const isMarked = skills.markedEnemy;
+    const dImg = isMarked ? '/images/spells/snowball_dash.png' : '/images/spells/snowball.png';
+    iconD.innerHTML = `<img src="${dImg}" alt="Snowball" />`;
+  }
 }
+
+// Khởi tạo bộ kỹ năng chuẩn cho tướng đầu tiên (Yasuo)
+skills.equipChampionKit('yasuo');
 updateHudSkills();
 
-// Champion 3D Model Switcher
+// Champion 3D Model Switcher (Official Riot Games CommunityDragon Data)
 const btnSwitchHero = document.getElementById('btn-switch-hero');
 const avatarIcon = document.getElementById('avatar-icon');
 const availableHeroes = [
-  { type: 'yasuo', name: 'Yasuo (Kẻ Bất Dung Thứ - LMHT)', icon: '🌪️' },
-  { type: 'jinx', name: 'Jinx (Khẩu Pháo Nổi Loạn - LMHT)', icon: '🚀' },
-  { type: 'zed', name: 'Zed (Chúa Tể Bóng Tối - LMHT)', icon: '🗡️' },
-  { type: 'ashe', name: 'Ashe (Cung Băng Freljord - LMHT)', icon: '🏹' },
-  { type: 'darius', name: 'Darius (Đại Tướng Noxus - LMHT)', icon: '🪓' }
+  { type: 'yasuo', name: 'Yasuo (Kẻ Bất Dung Thứ)', avatarImg: '/images/champions/yasuo.png', icon: '🌪️' },
+  { type: 'jinx', name: 'Jinx (Khẩu Pháo Nổi Loạn)', avatarImg: '/images/champions/jinx.png', icon: '🚀' },
+  { type: 'zed', name: 'Zed (Chúa Tể Bóng Tối)', avatarImg: '/images/champions/zed.png', icon: '🗡️' },
+  { type: 'ashe', name: 'Ashe (Cung Băng Freljord)', avatarImg: '/images/champions/ashe.png', icon: '🏹' },
+  { type: 'darius', name: 'Darius (Đại Tướng Noxus)', avatarImg: '/images/champions/darius.png', icon: '🪓' },
+  { type: 'ahri', name: 'Ahri (Hồ Ly Chín Đuôi)', avatarImg: '/images/champions/ahri.png', icon: '🦊' }
 ];
 let currentHeroIndex = 0;
+
+function setAvatarUi(hero) {
+  if (!avatarIcon) return;
+  if (hero.avatarImg) {
+    avatarIcon.innerHTML = `<img src="${hero.avatarImg}" alt="${hero.name}" />`;
+  } else {
+    avatarIcon.textContent = hero.icon;
+  }
+}
+// Set initial avatar
+setAvatarUi(availableHeroes[0]);
 
 if (btnSwitchHero) {
   btnSwitchHero.addEventListener('click', () => {
     currentHeroIndex = (currentHeroIndex + 1) % availableHeroes.length;
     const hero = availableHeroes[currentHeroIndex];
     player.switchModel(hero.type);
-    if (avatarIcon) avatarIcon.textContent = hero.icon;
+    skills.equipChampionKit(hero.type);
+    setAvatarUi(hero);
+    updateHudSkills();
+    renderLoadoutBar();
     btnSwitchHero.title = `Đang chọn: ${hero.name}. Click để đổi tiếp.`;
     sounds.playMove();
+    vfx.spawnDamageNumber(`🎯 ${hero.name.split(' ')[0]} - TẦM ĐÁNH: ${player.rangeLol}`, player.mesh.position, 'heal');
+    recalcPlayerStats();
   });
 }
 
@@ -607,7 +996,14 @@ function renderLoadoutBar() {
     const skill = skills.getSkill(slot);
     const previewEl = document.getElementById(`slot-preview-${slot}`);
     if (skill && previewEl) {
-      previewEl.querySelector('.slot-icon').textContent = skill.icon;
+      const iconEl = previewEl.querySelector('.slot-icon');
+      if (iconEl) {
+        if (skill.iconImg) {
+          iconEl.innerHTML = `<img src="${skill.iconImg}" style="width:100%;height:100%;border-radius:4px;object-fit:cover;" alt="${skill.name}" />`;
+        } else {
+          iconEl.textContent = skill.icon || '⚡';
+        }
+      }
       previewEl.querySelector('.slot-name').textContent = skill.name;
     }
   });
@@ -625,20 +1021,32 @@ function renderSkillsGrid() {
     const card = document.createElement('div');
     card.className = `skill-card ${isUlt ? 'is-ultimate' : ''} ${!isMatch ? 'opacity-50' : ''}`;
 
+    const iconHtml = skill.iconImg 
+      ? `<img src="${skill.iconImg}" class="card-skill-thumb" alt="${skill.name}" />`
+      : `<span class="card-icon">${skill.icon || '⚡'}</span>`;
+
+    const heroIconHtml = skill.heroIcon 
+      ? `<img src="${skill.heroIcon}" class="card-hero-thumb" alt="${skill.heroKey || ''}" />`
+      : '';
+
     card.innerHTML = `
       <div class="card-header">
         <div class="card-title-group">
-          <span class="card-icon">${skill.icon}</span>
+          ${iconHtml}
           <div>
             <div class="card-title">${skill.name}</div>
-            <div class="card-hero ${isUlt ? 'ult' : ''}">${skill.hero} ${isUlt ? '⭐ (CHIÊU CUỐI)' : ''}</div>
+            <div class="card-hero ${isUlt ? 'ult' : ''}">
+              ${heroIconHtml}
+              <span>${skill.hero} ${isUlt ? '⭐ (CHIÊU CUỐI)' : ''}</span>
+            </div>
           </div>
         </div>
       </div>
-      <div class="card-desc">${skill.desc}</div>
+      <div class="card-desc">${skill.desc || ''}</div>
       <div class="card-stats">
         <span>Hồi chiêu: <b>${skill.cd}s</b></span>
         <span>Tiêu hao: <b>${skill.mana} Mana</b></span>
+        ${skill.range ? `<span>Tầm: <b>${skill.range}</b></span>` : ''}
       </div>
     `;
 
@@ -693,8 +1101,80 @@ function animate() {
   // 1. Map Update
   map.update(delta, time);
 
-  // 2. Player Update
+  // 2. Player Update & Auto-Attack Combat
   player.update(delta, time);
+
+  // Xử lý đòn đánh thường chuẩn tầm đánh LMHT
+  if (!player.isDead) {
+    if (player.autoAttackTarget) {
+      if (player.autoAttackTarget.isDead || player.autoAttackTarget.isDestroyed) {
+        player.autoAttackTarget = null;
+      } else {
+        const tPos = player.autoAttackTarget.mesh ? player.autoAttackTarget.mesh.position : player.autoAttackTarget.group.position;
+        const distToTarget = player.mesh.position.distanceTo(tPos);
+
+        if (distToTarget > player.range + 0.25) {
+          // Chưa tới tầm đánh: Di chuyển lại gần mục tiêu
+          player.moveTo(tPos);
+        } else {
+          // Đã vào tầm đánh chuẩn: Dừng di chuyển và tung đòn đánh thường
+          player.targetPos = null;
+          player.basicAttack(player.autoAttackTarget, vfx, sounds, playerProjectiles);
+        }
+      }
+    } else if (!player.targetPos && player.attackCooldown <= 0) {
+      // Khi đứng yên (không có lệnh di chuyển): Tự động tấn công mục tiêu lọt vào tầm đánh (LMHT Auto Attack)
+      let nearestTarget = null;
+      let nearestDist = player.range;
+      for (const enemy of getAllEnemies()) {
+        if (!enemy.isDead && !enemy.isDestroyed) {
+          const ePos = enemy.mesh ? enemy.mesh.position : enemy.group?.position;
+          if (ePos) {
+            const d = player.mesh.position.distanceTo(ePos);
+            if (d <= nearestDist) {
+              nearestDist = d;
+              nearestTarget = enemy;
+            }
+          }
+        }
+      }
+      if (nearestTarget) {
+        player.basicAttack(nearestTarget, vfx, sounds, playerProjectiles);
+      }
+    }
+  }
+
+  // Cập nhật đường bay của đạn đánh thường từ Tướng người chơi (Ashe, Jinx)
+  for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+    const p = playerProjectiles[i];
+    if (!p.targetRef || p.targetRef.isDead || p.targetRef.isDestroyed) {
+      scene.remove(p.mesh);
+      playerProjectiles.splice(i, 1);
+      continue;
+    }
+
+    const targetPos = p.targetRef.mesh ? p.targetRef.mesh.position : p.targetRef.group.position;
+    const toTarget = new THREE.Vector3().subVectors(targetPos.clone().add(new THREE.Vector3(0, 0.9, 0)), p.mesh.position);
+    const dist = toTarget.length();
+
+    if (dist < 0.9) {
+      p.targetRef.takeDamage(p.damage, p.vfx);
+      if (p.sounds) p.sounds.playHit();
+      p.vfx.spawnIceExplosion(targetPos, p.isCrit ? 0xf59e0b : (p.color || 0x67e8f9), p.isCrit ? 14 : 10);
+      if (p.isCrit) {
+        p.vfx.spawnDamageNumber(`CHÍ MẠNG! -${p.damage}`, targetPos, 'crit');
+      }
+      if (p.lifesteal > 0 && player) {
+        const healAmt = Math.round(p.damage * p.lifesteal);
+        if (healAmt > 0) player.heal(healAmt, p.vfx);
+      }
+      scene.remove(p.mesh);
+      playerProjectiles.splice(i, 1);
+    } else {
+      toTarget.normalize();
+      p.mesh.position.addScaledVector(toTarget, p.speed * delta);
+    }
+  }
 
   // 3. Health Relic Pickup
   map.relics.forEach((relic) => {
@@ -711,10 +1191,10 @@ function animate() {
     }
   });
 
-  // 4. Enemy Bots Update & Gold Reward
+  // 4. Enemy Bots Update & Gold Reward (Tấn công theo tầm đánh chuẩn LMHT)
   enemyBots.forEach((bot) => {
     const wasDead = bot.isDead;
-    bot.update(delta, time, vfx);
+    bot.update(delta, time, vfx, [player, ...alliedMinions], sounds);
     if (!wasDead && bot.isDead) {
       // Player kill reward!
       player.gold += 300;
@@ -762,6 +1242,21 @@ function animate() {
       continue;
     }
 
+    // Kiểm tra xem đạn lính có bị Tường Gió (Yasuo Windwall) chặn hay không
+    let blockedByWindwall = false;
+    for (const wall of skills.windWalls) {
+      if (p.mesh.position.distanceTo(wall.mesh.position) < 3.8) {
+        blockedByWindwall = true;
+        vfx.spawnIceExplosion(p.mesh.position, 0x38bdf8, 8);
+        break;
+      }
+    }
+    if (blockedByWindwall) {
+      scene.remove(p.mesh);
+      minionProjectiles.splice(i, 1);
+      continue;
+    }
+
     const targetPos = p.targetRef.mesh ? p.targetRef.mesh.position : p.targetRef.group.position;
     const toTarget = new THREE.Vector3().subVectors(targetPos.clone().add(new THREE.Vector3(0, 0.8, 0)), p.mesh.position);
     const dist = toTarget.length();
@@ -801,10 +1296,22 @@ function animate() {
   camera.lookAt(player.mesh.position.x, 1.2, player.mesh.position.z - 1.5);
 
   // 11. HUD Update
-  hudHpBar.style.width = `${(player.hp / player.maxHp) * 100}%`;
+  hudHpBar.style.width = `${Math.max(0, Math.min(100, (player.hp / player.maxHp) * 100))}%`;
   hudHpText.textContent = `${Math.round(player.hp)} / ${player.maxHp}`;
-  hudMpBar.style.width = `${(player.mp / player.maxMp) * 100}%`;
-  hudMpText.textContent = `${Math.round(player.mp)} / ${player.maxMp}`;
+  if (player.partype === 'None') {
+    hudMpBar.style.width = '0%';
+    hudMpText.textContent = 'Không có Năng lượng';
+  } else {
+    hudMpBar.style.width = `${Math.max(0, Math.min(100, (player.mp / player.maxMp) * 100))}%`;
+    hudMpText.textContent = `${Math.round(player.mp)} / ${player.maxMp}`;
+    if (player.partype === 'Flow') {
+      hudMpBar.style.background = 'linear-gradient(90deg, #38bdf8, #e2e8f0)';
+    } else if (player.partype === 'Energy') {
+      hudMpBar.style.background = 'linear-gradient(90deg, #d97706, #fbbf24)';
+    } else {
+      hudMpBar.style.background = 'linear-gradient(90deg, #0284c7, #38bdf8)';
+    }
+  }
 
   for (const k in skills.cooldowns) {
     const cd = skills.cooldowns[k];
@@ -821,11 +1328,17 @@ function animate() {
   }
 
   if (skills.markedEnemy) {
-    iconD.textContent = '⚡';
+    if (iconD && iconD.dataset.state !== 'dash') {
+      iconD.dataset.state = 'dash';
+      iconD.innerHTML = '<img src="/images/spells/snowball_dash.png" alt="Dash" />';
+    }
     cdOverlays.D.classList.remove('active');
     cdOverlays.D.textContent = '';
   } else {
-    iconD.textContent = '⚪';
+    if (iconD && iconD.dataset.state !== 'mark') {
+      iconD.dataset.state = 'mark';
+      iconD.innerHTML = '<img src="/images/spells/snowball.png" alt="Mark" />';
+    }
   }
 
   composer.render();
