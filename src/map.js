@@ -245,6 +245,7 @@ export class HowlingAbyssMap {
     this.buildStatues();
     this.buildSnow();
     this.buildHexgates();
+    this.buildFountains();
     this.buildPoros();
   }
 
@@ -556,6 +557,115 @@ export class HowlingAbyssMap {
     this.scene.add(this.snowParticles);
   }
 
+  // --------------------------------------------------------------------------
+  // BỆ ĐÁ CỔ (FOUNTAIN) — đúng chuẩn Howling Abyss
+  // --------------------------------------------------------------------------
+  // Trong LMHT, Bệ Đá Cổ là nơi hồi máu/mana nhanh và là điểm mua đồ.
+  // Trước đây game chỉ có VÙNG LOGIC (bán kính 26 ở z=100) mà không có
+  // mô hình 3D nào, nên người chơi không biết mình đang ở đâu.
+  // Hàm này dựng mô hình bệ đá cho cả hai phía:
+  //   - Xanh (đồng minh): z = +100
+  //   - Đỏ  (địch)      : z = -100
+  // --------------------------------------------------------------------------
+  buildFountains() {
+    const fountains = [
+      { x: 0, z: 100, isAllied: true },
+      { x: 0, z: -100, isAllied: false }
+    ];
+    this.fountains = [];
+
+    fountains.forEach((cfg) => {
+      const group = new THREE.Group();
+      group.position.set(cfg.x, 0, cfg.z);
+
+      const color = cfg.isAllied ? 0x3fa9f5 : 0xff5a3c;
+      const glow = cfg.isAllied ? 0x8fd6ff : 0xffa07a;
+
+      // 1. Bậc đá tròn (nền bệ đá)
+      const baseMat = new THREE.MeshStandardMaterial({
+        color: 0x2a3542, roughness: 0.85, metalness: 0.1
+      });
+      for (let i = 0; i < 3; i++) {
+        const r = 11 - i * 2.4;
+        const step = new THREE.Mesh(
+          new THREE.CylinderGeometry(r, r + 0.5, 0.45, 40),
+          baseMat
+        );
+        step.position.y = 0.22 + i * 0.45;
+        step.receiveShadow = true;
+        step.castShadow = true;
+        group.add(step);
+      }
+
+      // 2. Vòng năng lượng phát sáng (dấu hiệu nhận biết vùng an toàn)
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: glow, transparent: true, opacity: 0.55, side: THREE.DoubleSide
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(9.4, 10.6, 64), ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 1.42;
+      group.add(ring);
+
+      // 3. Cột pha lê trung tâm (hồi máu/mana)
+      const crystalMat = new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 1.8,
+        roughness: 0.25, metalness: 0.4, transparent: true, opacity: 0.92
+      });
+      const crystal = new THREE.Mesh(
+        new THREE.ConeGeometry(1.5, 4.6, 6),
+        crystalMat
+      );
+      crystal.position.y = 3.6;
+      crystal.castShadow = true;
+      group.add(crystal);
+
+      // 4. Hào quang quanh pha lê
+      const halo = new THREE.PointLight(glow, 3.5, 34, 2);
+      halo.position.y = 4.2;
+      group.add(halo);
+
+      // 5. Bốn trụ đá nhỏ quanh bệ (tạo cảm giác kiến trúc Freljord)
+      const pillarMat = new THREE.MeshStandardMaterial({
+        color: 0x3d4b5c, roughness: 0.9
+      });
+      for (let i = 0; i < 4; i++) {
+        const a = (Math.PI / 2) * i + Math.PI / 4;
+        const p = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.55, 0.75, 3.2, 8),
+          pillarMat
+        );
+        p.position.set(Math.cos(a) * 8.2, 2.6, Math.sin(a) * 8.2);
+        p.castShadow = true;
+        p.receiveShadow = true;
+        group.add(p);
+      }
+
+      this.scene.add(group);
+      this.fountains.push({
+        group,
+        crystal,
+        ring,
+        halo,
+        isAllied: cfg.isAllied,
+        position: new THREE.Vector3(cfg.x, 0, cfg.z)
+      });
+    });
+  }
+
+  // Cập nhật hiệu ứng động cho bệ đá (xoay + nhấp nháy)
+  updateFountains(time) {
+    if (!this.fountains) return;
+    for (const f of this.fountains) {
+      if (f.crystal) f.crystal.rotation.y = time * 0.8;
+      if (f.ring) {
+        f.ring.rotation.z = -time * 0.45;
+        // Nhấp nháy nhẹ để bệ đá trông "sống"
+        f.ring.material.opacity = 0.4 + Math.sin(time * 2.2) * 0.18;
+      }
+      if (f.halo) f.halo.intensity = 3.0 + Math.sin(time * 1.8) * 0.8;
+    }
+  }
+
   buildHexgates() {
     const coords = [
       { x: 8, z: 80, rotY: 0 },
@@ -618,6 +728,9 @@ export class HowlingAbyssMap {
   }
 
   update(delta, time) {
+    // Bệ Đá Cổ: xoay pha lê + nhấp nháy vòng năng lượng
+    this.updateFountains(time);
+
     if (this.poros) {
       this.poros.forEach(p => {
         if (p.mixer) p.mixer.update(delta);

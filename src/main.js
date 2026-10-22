@@ -11,6 +11,19 @@ import { sounds } from './audio.js';
 import { SKILL_CATALOG, getAllSkills } from './skill_catalog.js';
 import { ITEMS_CATALOG, getItemById } from './items.js';
 import { ARAM_MAYHEM_AUGMENTS, getRandomMayhemAugments, getAugmentById } from './augments.js';
+import { Minimap, isAtFountain } from './minimap.js';
+import {
+  ACTIVE_MODE,
+  ARAM_ECONOMY,
+  ARAM_CHAMPION_SELECT,
+  MATCH_RULES,
+  MATCH_STATE,
+  createMatchState,
+  getRespawnSeconds,
+  getLevelFromXp,
+  LEVEL_XP_THRESHOLDS,
+  rollRandomChampion
+} from './aram_rules.js';
 
 // 1. Scene, Camera, Renderer Setup
 const container = document.getElementById('canvas-container');
@@ -113,16 +126,144 @@ const enemyBots = [
   new EnemyBot(scene, 3.5, -14, 'Bot Đấu Sĩ')
 ];
 
+// Expose các thực thể chính ra window để tiện debug trong DevTools.
+// Ví dụ: aramDebug.redStructures[4].isDestroyed  (Nhà Chính Địch)
+window.aramDebug = {
+  get blueStructures() { return blueStructures; },
+  get redStructures() { return redStructures; },
+  get alliedMinions() { return alliedMinions; },
+  get enemyMinions() { return enemyMinions; },
+  get enemyBots() { return enemyBots; }
+};
+
+// ============================================================================
+// ARAM MATCH STATE (Queue #2400 — ARAM: Hỗn Loạn)
+// Theo dõi thời gian trận, số lần chết, điều kiện thắng/thua.
+// ============================================================================
+const aramMatch = createMatchState({ mode: ACTIVE_MODE });
+window.aramMatch = aramMatch;
+
+// Đồng hồ trận đấu & chỉ số K/D trên HUD
+const elMatchTimer = document.getElementById('lol-match-timer');
+const elMatchKda = document.getElementById('aram-match-kda'); // (không còn trong HUD mới)
+const elModeName = document.getElementById('aram-mode-name');
+if (elModeName) elModeName.textContent = ACTIVE_MODE.name.toUpperCase();
+
+// Overlay chết / hồi sinh
+const elDeathOverlay = document.getElementById('aram-death-overlay');
+const elDeathTimer = document.getElementById('aram-death-timer');
+
+// Overlay kết quả trận
+const elResultOverlay = document.getElementById('aram-result-overlay');
+const elResultTitle = document.getElementById('aram-result-title');
+const elResultSub = document.getElementById('aram-result-sub');
+const elResultStats = document.getElementById('aram-result-stats');
+
+// Callback được gọi từ PlayerChampion.die()
+window.onPlayerDeath = (seconds) => {
+  aramMatch.playerDeaths += 1;
+  if (elDeathOverlay) elDeathOverlay.classList.remove('hidden');
+  if (elDeathTimer) elDeathTimer.textContent = Math.ceil(seconds);
+};
+
+// Callback mỗi frame khi đang chờ hồi sinh
+window.onRespawnTick = (secondsLeft) => {
+  if (elDeathTimer) elDeathTimer.textContent = Math.max(0, Math.ceil(secondsLeft));
+};
+
+// Callback khi hồi sinh xong
+window.onPlayerRespawn = () => {
+  if (elDeathOverlay) elDeathOverlay.classList.add('hidden');
+};
+
+// ============================================================================
+// MINIMAP + BỆ ĐÁ CỔ (Fountain Gate)
+// ARAM: chỉ được mua trang bị khi đứng trong vùng căn cứ quanh Nhà Chính.
+// ============================================================================
+const minimapCanvas = document.getElementById('minimap-canvas');
+const minimap = minimapCanvas ? new Minimap(minimapCanvas) : null;
+
+const elFountainWarning = document.getElementById('fountain-warning');
+const elShopBtn = document.getElementById('btn-open-shop');
+const elScoreBlue = document.getElementById('lol-score-blue');
+const elScoreRed = document.getElementById('lol-score-red');
+
+// Trạng thái hiện tại của người chơi so với Bệ Đá Cổ
+let playerAtFountain = true;
+let fountainWarningTimer = 0;
+
+/** Cập nhật giao diện theo trạng thái Bệ Đá Cổ */
+function updateFountainUi(atFountain) {
+  const changed = atFountain !== playerAtFountain;
+  playerAtFountain = atFountain;
+
+  if (elShopBtn) {
+    if (atFountain) {
+      elShopBtn.classList.remove('locked');
+      elShopBtn.title = 'Mở Cửa Hàng (P) — bạn đang ở Bệ Đá Cổ';
+    } else {
+      elShopBtn.classList.add('locked');
+      elShopBtn.title = 'Cần đứng tại Bệ Đá Cổ mới mua được trang bị!';
+    }
+  }
+
+  // Khi trạng thái đổi mà cửa hàng đang mở -> làm mới trạng thái nút Mua/Bán
+  if (changed && typeof window.refreshShopButtons === 'function') {
+    window.refreshShopButtons();
+  }
+}
+
+/** Hiện cảnh báo khi cố mua đồ ngoài vùng căn cứ */
+function showFountainWarning() {
+  if (!elFountainWarning) return;
+  elFountainWarning.classList.remove('hidden');
+  fountainWarningTimer = 2.2; // tự ẩn sau 2.2s
+}
+
+/** Hiển thị màn hình kết thúc trận đấu */
+function showMatchResult(won) {
+  if (aramMatch.state !== MATCH_STATE.RUNNING) return;
+  aramMatch.finish(won);
+
+  if (elResultTitle) {
+    elResultTitle.textContent = won ? 'CHIẾN THẮNG' : 'THẤT BẠI';
+    elResultTitle.className = 'aram-result-title ' + (won ? 'victory' : 'defeat');
+  }
+  if (elResultSub) {
+    elResultSub.textContent = won
+      ? 'Bạn đã phá hủy Nhà Chính Địch — Vực Gió Hú thuộc về Đồng Minh!'
+      : 'Nhà Chính Đồng Minh đã bị phá hủy. Hãy thử lại!';
+  }
+  if (elResultStats) {
+    elResultStats.innerHTML =
+      `⏱️ Thời gian: <b>${aramMatch.formatTime()}</b><br>` +
+      `⚔️ Hạ gục: <b>${aramMatch.playerKills}</b> · Chết: <b>${aramMatch.playerDeaths}</b><br>` +
+      `🏰 Trụ đã phá: <b>${aramMatch.turretsDestroyed}</b>`;
+  }
+  if (elResultOverlay) elResultOverlay.classList.remove('hidden');
+}
+
+// Nút chơi lại
+const btnAramRestart = document.getElementById('btn-aram-restart');
+if (btnAramRestart) {
+  btnAramRestart.addEventListener('click', () => window.location.reload());
+}
+
 // MINIONS SYSTEM
 let alliedMinions = [];
 let enemyMinions = [];
 let minionProjectiles = [];
 let playerProjectiles = []; // Đạn đánh thường của Tướng người chơi (Ashe, Jinx)
 let waveTimer = 0;
+let waveCount = 0;
 
 function spawnMinionWave(initial = false) {
   const redInhibitorDestroyed = redStructures[3].isDestroyed;
   const blueInhibitorDestroyed = blueStructures[3].isDestroyed;
+
+  waveCount++;
+  // LMHT: cứ mỗi đợt thứ 3 thì có thêm 1 lính công thành (siege) mỗi bên
+  const hasSiege = !initial && waveCount % 3 === 0;
 
   const blueSpawnZ = initial ? 20 : 85;
   const redSpawnZ = initial ? -20 : -85;
@@ -134,6 +275,9 @@ function spawnMinionWave(initial = false) {
   for (let i = -1; i <= 1; i++) {
     alliedMinions.push(new Minion(scene, true, 'caster', i * 2.2, blueSpawnZ + 4));
   }
+  if (hasSiege) {
+    alliedMinions.push(new Minion(scene, true, 'siege', 0, blueSpawnZ + 8));
+  }
   if (redInhibitorDestroyed) {
     alliedMinions.push(new Minion(scene, true, 'super', 0, blueSpawnZ + 7));
   }
@@ -144,6 +288,9 @@ function spawnMinionWave(initial = false) {
   }
   for (let i = -1; i <= 1; i++) {
     enemyMinions.push(new Minion(scene, false, 'caster', i * 2.2, redSpawnZ - 4));
+  }
+  if (hasSiege) {
+    enemyMinions.push(new Minion(scene, false, 'siege', 0, redSpawnZ - 8));
   }
   if (blueInhibitorDestroyed) {
     enemyMinions.push(new Minion(scene, false, 'super', 0, redSpawnZ - 7));
@@ -215,7 +362,10 @@ let isPointerDragging = false;
 window.addEventListener('pointerdown', (e) => {
   // If clicking on UI (HUD, modals, buttons, cards), ignore 3D game ground action
   if (e.target && e.target.closest && (
-    e.target.closest('.moba-hud') ||
+    e.target.closest('.lol-hud') ||
+    e.target.closest('.lol-scoreboard') ||
+    e.target.closest('.lol-minimap-wrapper') ||
+    e.target.closest('.lol-utility-bar') ||
     e.target.closest('.skill-modal-content') ||
     e.target.closest('.skill-modal-backdrop') ||
     e.target.closest('.shop-modal-content') ||
@@ -308,6 +458,22 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// TẦM ĐÁNH HIỆU DỤNG (chuẩn LMHT: mép-tới-mép).
+// basicAttack() đo tâm-tới-tâm nên phải cộng bán kính hai bên. Nếu chỉ dùng
+// player.range trơn thì tướng phải đứng sát hơn LMHT thật mới đánh được.
+// ---------------------------------------------------------------------------
+function getEdgeRange(attacker, target) {
+  const selfRadius = 0.9;
+  let targetRadius = 0.6;
+  const t = target && target.type ? String(target.type) : '';
+  if (t.includes('turret')) targetRadius = 2.4;
+  else if (t === 'nexus') targetRadius = 3.2;
+  else if (t === 'inhibitor') targetRadius = 2.0;
+  else if (target && target.mesh && target.mesh.userData && target.mesh.userData.isChampion) targetRadius = 0.9;
+  return (attacker.range || 0) + selfRadius + targetRadius;
+}
+
 function getAllEnemies() {
   const list = [...enemyBots];
   for (const m of enemyMinions) {
@@ -327,6 +493,11 @@ function getAllEnemies() {
 
 function castSkillSlot(slot) {
   const enemies = getAllEnemies();
+  // Phát hoạt ảnh tung chiêu của tướng (Spell1..Spell4 trong model GLB).
+  // Nếu model không có clip tương ứng thì bỏ qua, không ảnh hưởng gameplay.
+  if (player && typeof player.playSpellAnimation === 'function') {
+    player.playSpellAnimation(slot);
+  }
   skills.cast(slot, mouseWorldPos, enemies);
 }
 
@@ -432,7 +603,7 @@ function recalcPlayerStats() {
 
   // Update 6 Inventory Slots UI với ảnh icon chính thức từ Riot Games
   for (let i = 0; i < 6; i++) {
-    const slotEl = document.querySelector(`.inv-slot[data-slot="${i}"] .inv-inner`);
+    const slotEl = document.querySelector(`.lol-inv-slot[data-slot="${i}"] .lol-inv-inner`);
     if (slotEl) {
       if (player.inventory[i]) {
         const it = player.inventory[i];
@@ -451,8 +622,8 @@ function recalcPlayerStats() {
   for (let i = 0; i < 4; i++) {
     const slotEl = document.getElementById(`aug-slot-${i}`);
     if (slotEl) {
-      slotEl.className = 'aug-slot';
-      const inner = slotEl.querySelector('.aug-inner');
+      slotEl.className = 'lol-aug-chip';
+      const inner = slotEl.querySelector('.lol-aug-inner');
       if (player.augments && player.augments[i]) {
         const aug = player.augments[i];
         slotEl.classList.add(`rarity-${aug.rarity.toLowerCase()}`);
@@ -503,7 +674,7 @@ btnOpenShop.addEventListener('click', toggleShopModal);
 btnCloseShop.addEventListener('click', toggleShopModal);
 
 // Click inventory slot in HUD -> opens shop to sell
-document.querySelectorAll('.inv-slot').forEach(slotEl => {
+document.querySelectorAll('.lol-inv-slot').forEach(slotEl => {
   slotEl.addEventListener('click', () => {
     const idx = parseInt(slotEl.dataset.slot, 10);
     if (player.inventory[idx]) {
@@ -583,14 +754,20 @@ function selectShopItem(it, invIdx = null) {
   detailStats.innerHTML = statParts.length > 0 ? statParts.join('<br>') : 'Vật phẩm tiêu hao đặc biệt.';
   detailDesc.textContent = it.desc;
 
-  // Buy button state
+  // Buy button state — bao gồm cả điều kiện Bệ Đá Cổ
   const canAfford = player.gold >= it.cost;
   const hasSpace = it.category === 'CONSUMABLE' || player.inventory.length < 6;
+  const atFountain = isAtFountain(player.mesh.position);
 
-  if (canAfford && hasSpace) {
+  if (canAfford && hasSpace && atFountain) {
     btnBuy.classList.remove('disabled');
+    btnBuy.textContent = 'MUA TRANG BỊ';
+  } else if (!atFountain) {
+    btnBuy.classList.add('disabled');
+    btnBuy.textContent = 'CẦN Ở BỆ ĐÁ CỔ';
   } else {
     btnBuy.classList.add('disabled');
+    btnBuy.textContent = 'MUA TRANG BỊ';
   }
 
   // Sell button state
@@ -603,8 +780,23 @@ function selectShopItem(it, invIdx = null) {
   }
 }
 
+// Cho phép làm mới trạng thái nút Mua/Bán khi người chơi vào/ra Bệ Đá Cổ
+window.refreshShopButtons = () => {
+  if (selectedShopItem) selectShopItem(selectedShopItem, selectedInventoryIndex);
+};
+
 btnBuy.addEventListener('click', () => {
   if (!selectedShopItem) return;
+
+  // ------------------------------------------------------------------
+  // ARAM RULE: chỉ được mua trang bị khi đứng tại Bệ Đá Cổ.
+  // ------------------------------------------------------------------
+  if (!isAtFountain(player.mesh.position)) {
+    showFountainWarning();
+    sounds.playMove();
+    return;
+  }
+
   if (player.gold < selectedShopItem.cost) return;
 
   if (selectedShopItem.category === 'CONSUMABLE') {
@@ -634,6 +826,13 @@ btnBuy.addEventListener('click', () => {
 
 btnSell.addEventListener('click', () => {
   if (!selectedShopItem) return;
+
+  // ARAM RULE: chỉ bán trang bị khi đứng tại Bệ Đá Cổ.
+  if (!isAtFountain(player.mesh.position)) {
+    showFountainWarning();
+    sounds.playMove();
+    return;
+  }
   const idx = selectedInventoryIndex !== null ? selectedInventoryIndex : player.inventory.findIndex(it => it.id === selectedShopItem.id);
   if (idx !== -1) {
     const sellPrice = Math.floor(player.inventory[idx].cost * 0.7);
@@ -836,8 +1035,10 @@ function updateHudSkills() {
     const skill = skills.getSkill(slot);
     const slotEl = document.getElementById(`slot-${slot}`);
     if (skill && slotEl) {
-      const iconEl = slotEl.querySelector('.skill-icon');
-      const manaEl = slotEl.querySelector('.skill-mana');
+      // HUD mới (.lol-*) dùng các class này; class cũ (.skill-icon/.skill-mana)
+      // không tồn tại trong index.html nên trước đây HUD không hề cập nhật.
+      const iconEl = slotEl.querySelector('.lol-ability-icon');
+      const manaEl = slotEl.querySelector('.lol-mana-cost');
       if (iconEl) {
         if (skill.iconImg) {
           iconEl.innerHTML = `<img src="${skill.iconImg}" alt="${skill.name}" />`;
@@ -865,13 +1066,23 @@ updateHudSkills();
 // Champion 3D Model Switcher (Official Riot Games CommunityDragon Data)
 const btnSwitchHero = document.getElementById('btn-switch-hero');
 const avatarIcon = document.getElementById('avatar-icon');
+// Danh sách tướng PHẢI khớp với ARAM_CHAMPION_SELECT.pool trong aram_rules.js,
+// nếu lệch thì rollRandomChampion() có thể trả về tướng không tồn tại ở đây.
 const availableHeroes = [
   { type: 'yasuo', name: 'Yasuo (Kẻ Bất Dung Thứ)', avatarImg: '/images/champions/yasuo.png', icon: '🌪️' },
   { type: 'jinx', name: 'Jinx (Khẩu Pháo Nổi Loạn)', avatarImg: '/images/champions/jinx.png', icon: '🚀' },
   { type: 'zed', name: 'Zed (Chúa Tể Bóng Tối)', avatarImg: '/images/champions/zed.png', icon: '🗡️' },
   { type: 'ashe', name: 'Ashe (Cung Băng Freljord)', avatarImg: '/images/champions/ashe.png', icon: '🏹' },
   { type: 'darius', name: 'Darius (Đại Tướng Noxus)', avatarImg: '/images/champions/darius.png', icon: '🪓' },
-  { type: 'ahri', name: 'Ahri (Hồ Ly Chín Đuôi)', avatarImg: '/images/champions/ahri.png', icon: '🦊' }
+  { type: 'ahri', name: 'Ahri (Hồ Ly Chín Đuôi)', avatarImg: '/images/champions/ahri.png', icon: '🦊' },
+  { type: 'ezreal', name: 'Ezreal (Nhà Thám Hiểm)', avatarImg: '/images/champions/ezreal.png', icon: '🔮' },
+  { type: 'lux', name: 'Lux (Tiểu Thư Ánh Sáng)', avatarImg: '/images/champions/lux.png', icon: '✨' },
+  { type: 'malphite', name: 'Malphite (Mảnh Vỡ Núi Lửa)', avatarImg: '/images/champions/malphite.png', icon: '🪨' },
+  { type: 'nautilus', name: 'Nautilus (Người Khổng Lồ Biển)', avatarImg: '/images/champions/nautilus.png', icon: '⚓' },
+  { type: 'chogath', name: "Cho'Gath (Quái Vật Hư Không)", avatarImg: '/images/champions/chogath.png', icon: '👹' },
+  { type: 'katarina', name: 'Katarina (Lưỡi Dao Bóng Đêm)', avatarImg: '/images/champions/katarina.png', icon: '🗡️' },
+  { type: 'akali', name: 'Akali (Sát Thủ Bóng Đêm)', avatarImg: '/images/champions/akali.png', icon: '💨' },
+  { type: 'syndra', name: 'Syndra (Nữ Pháp Sư Bóng Đêm)', avatarImg: '/images/champions/syndra.png', icon: '🔮' }
 ];
 let currentHeroIndex = 0;
 
@@ -886,21 +1097,83 @@ function setAvatarUi(hero) {
 // Set initial avatar
 setAvatarUi(availableHeroes[0]);
 
+// ---------------------------------------------------------------------------
+// ARAM CHAMPION SELECT: Random tướng giống ARAM thật + ô Bench/Reroll.
+// Trước đây nút này xoay vòng tuần tự (không giống ARAM). ARAM thật cho người
+// chơi 1 tướng random + số lượt đổi giới hạn, nên ở đây mô phỏng lại đúng vậy.
+// ---------------------------------------------------------------------------
+function applyHero(hero) {
+  player.switchModel(hero.type);
+  skills.equipChampionKit(hero.type);
+  setAvatarUi(hero);
+  updateHudSkills();
+  renderLoadoutBar();
+  recalcPlayerStats();
+}
+
+let aramRerollsLeft = ARAM_CHAMPION_SELECT.rerolls;
+let aramBenchHero = null; // tướng đang giữ ở ô dự phòng (bench)
+
+// Cập nhật tooltip mô tả trạng thái hiện tại của nút đổi tướng
+function refreshSwitchHeroTitle() {
+  if (!btnSwitchHero) return;
+  const cur = availableHeroes[currentHeroIndex];
+  const benchTxt = aramBenchHero ? ` | Bench: ${aramBenchHero.name}` : '';
+  btnSwitchHero.title =
+    `${cur.name} — Reroll còn ${aramRerollsLeft} lượt${benchTxt}`;
+}
+
 if (btnSwitchHero) {
   btnSwitchHero.addEventListener('click', () => {
-    currentHeroIndex = (currentHeroIndex + 1) % availableHeroes.length;
-    const hero = availableHeroes[currentHeroIndex];
-    player.switchModel(hero.type);
-    skills.equipChampionKit(hero.type);
-    setAvatarUi(hero);
-    updateHudSkills();
-    renderLoadoutBar();
-    btnSwitchHero.title = `Đang chọn: ${hero.name}. Click để đổi tiếp.`;
+    const cur = availableHeroes[currentHeroIndex];
+
+    // --- 1. Có tướng ở bench: đổi chỗ qua lại giữa bench và tướng đang chơi ---
+    if (aramBenchHero) {
+      const target = aramBenchHero;
+      aramBenchHero = cur;              // tướng vừa chơi giờ nằm ở bench
+      const idx = availableHeroes.findIndex(h => h.type === target.type);
+      if (idx >= 0) currentHeroIndex = idx;
+      applyHero(target);
+      sounds.playMove();
+      vfx.spawnDamageNumber(`🔄 Đổi Bench: ${target.name.split(' ')[0]}`, player.mesh.position, 'heal');
+      refreshSwitchHeroTitle();
+      return;
+    }
+
+    // --- 2. Chưa có bench: reroll random (tiêu 1 lượt) ---
+    if (aramRerollsLeft <= 0) {
+      vfx.spawnDamageNumber('❌ ĐÃ HẾT LƯỢT ĐỔI TƯỚNG', player.mesh.position, 'crit');
+      refreshSwitchHeroTitle();
+      return;
+    }
+
+    // Random tướng KHÁC tướng đang chơi, có thể trùng bench cũ (nếu có)
+    const exclude = [cur.type];
+    const newKey = rollRandomChampion(exclude);
+    const newIdx = availableHeroes.findIndex(h => h.type === newKey);
+    if (newIdx < 0) return; // không có trong danh sách thì bỏ qua, không trừ lượt
+
+    aramRerollsLeft -= 1;
+    aramBenchHero = cur;               // giữ tướng cũ ở bench để đổi lại được
+    currentHeroIndex = newIdx;
+    const hero = availableHeroes[newIdx];
+    applyHero(hero);
     sounds.playMove();
-    vfx.spawnDamageNumber(`🎯 ${hero.name.split(' ')[0]} - TẦM ĐÁNH: ${player.rangeLol}`, player.mesh.position, 'heal');
-    recalcPlayerStats();
+    vfx.spawnDamageNumber(`🎲 ${hero.name.split(' ')[0]} (còn ${aramRerollsLeft} lượt)`, player.mesh.position, 'heal');
+    refreshSwitchHeroTitle();
   });
 }
+
+// Khởi tạo: ARAM random tướng ngay khi vào trận (không phải luôn Yasuo)
+(function initAramRandomChampion() {
+  const startKey = rollRandomChampion();
+  const idx = availableHeroes.findIndex(h => h.type === startKey);
+  if (idx >= 0) {
+    currentHeroIndex = idx;
+    applyHero(availableHeroes[idx]);
+  }
+  refreshSwitchHeroTitle();
+})();
 
 // Sketchfab 3D Model Uploader (File Button & Drag-and-Drop)
 const btnUploadModel = document.getElementById('btn-upload-model');
@@ -1089,11 +1362,47 @@ function animate() {
   const delta = Math.min(clock.getDelta(), 0.1);
   const time = clock.getElapsedTime();
 
-  // Passive Gold (+3 Gold every second)
+  // ARAM: cập nhật đồng hồ trận đấu
+  aramMatch.tick(delta);
+  if (elMatchTimer) elMatchTimer.textContent = aramMatch.formatTime();
+
+  // ARAM: kiểm tra Bệ Đá Cổ (chỉ mua đồ khi đứng trong vùng căn cứ)
+  updateFountainUi(isAtFountain(player.mesh.position));
+
+  // Thanh XP + cấp độ: cập nhật MỖI FRAME vì XP tăng liên tục
+  const hudLvlEl = document.getElementById('hud-level');
+  if (hudLvlEl) hudLvlEl.textContent = player.level || 1;
+
+  const xpFillEl = document.getElementById('lol-xp-fill');
+  if (xpFillEl) {
+    let pct = 100;
+    if (player.level < 18) {
+      const floorXp = LEVEL_XP_THRESHOLDS[player.level - 1] || 0;
+      const ceilXp = LEVEL_XP_THRESHOLDS[player.level] || 1;
+      pct = ((player.xp - floorXp) / (ceilXp - floorXp)) * 100;
+    }
+    xpFillEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+  }
+
+  // Tự ẩn cảnh báo Bệ Đá Cổ sau thời gian
+  if (fountainWarningTimer > 0) {
+    fountainWarningTimer -= delta;
+    if (fountainWarningTimer <= 0 && elFountainWarning) {
+      elFountainWarning.classList.add('hidden');
+    }
+  }
+
+  // Cập nhật điểm số 2 đội trên thanh scoreboard
+  if (elScoreBlue) elScoreBlue.textContent = aramMatch.playerKills;
+  if (elScoreRed) elScoreRed.textContent = aramMatch.playerDeaths;
+
+  // Passive Gold — ARAM tăng vàng thụ động nhanh hơn SR (lấy từ aram_rules.js)
   goldTimer += delta;
   if (goldTimer >= 1.0) {
     goldTimer = 0;
-    player.gold += 3;
+    player.gold += ARAM_ECONOMY.passiveGoldPerSecond;
+    // ARAM cũng tăng XP thụ động đều đặn cho cả đội
+    player.gainXp(ARAM_ECONOMY.xpPerSecond);
     document.getElementById('hud-gold').textContent = Math.floor(player.gold);
     document.getElementById('shop-user-gold').textContent = Math.floor(player.gold);
   }
@@ -1111,9 +1420,14 @@ function animate() {
         player.autoAttackTarget = null;
       } else {
         const tPos = player.autoAttackTarget.mesh ? player.autoAttackTarget.mesh.position : player.autoAttackTarget.group.position;
-        const distToTarget = player.mesh.position.distanceTo(tPos);
+        // Khoảng cách MẶT PHẲNG (bỏ trục Y). distanceTo() 3D cộng cả độ cao
+        // của trụ/nhà chính khiến tầm đánh bị hụt so với LMHT thật.
+        const distToTarget = Math.hypot(
+          tPos.x - player.mesh.position.x,
+          tPos.z - player.mesh.position.z
+        );
 
-        if (distToTarget > player.range + 0.25) {
+        if (distToTarget > getEdgeRange(player, player.autoAttackTarget)) {
           // Chưa tới tầm đánh: Di chuyển lại gần mục tiêu
           player.moveTo(tPos);
         } else {
@@ -1125,13 +1439,17 @@ function animate() {
     } else if (!player.targetPos && player.attackCooldown <= 0) {
       // Khi đứng yên (không có lệnh di chuyển): Tự động tấn công mục tiêu lọt vào tầm đánh (LMHT Auto Attack)
       let nearestTarget = null;
-      let nearestDist = player.range;
+      let nearestDist = Infinity;
       for (const enemy of getAllEnemies()) {
         if (!enemy.isDead && !enemy.isDestroyed) {
           const ePos = enemy.mesh ? enemy.mesh.position : enemy.group?.position;
           if (ePos) {
-            const d = player.mesh.position.distanceTo(ePos);
-            if (d <= nearestDist) {
+            // Cùng lý do: dùng khoảng cách mặt phẳng + tầm mép-tới-mép
+            const d = Math.hypot(
+              ePos.x - player.mesh.position.x,
+              ePos.z - player.mesh.position.z
+            );
+            if (d <= getEdgeRange(player, enemy) && d < nearestDist) {
               nearestDist = d;
               nearestTarget = enemy;
             }
@@ -1197,16 +1515,23 @@ function animate() {
     bot.update(delta, time, vfx, [player, ...alliedMinions], sounds);
     if (!wasDead && bot.isDead) {
       // Player kill reward!
-      player.gold += 300;
-      vfx.spawnDamageNumber('+300 🪙 FIRST BLOOD!', bot.mesh.position, 'crit');
+      aramMatch.playerKills += 1;
+      aramMatch.enemyDeaths += 1;
+      player.gold += ARAM_ECONOMY.killGold;
+  // Hạ gục tướng địch thưởng XP lớn
+  player.gainXp(120);
+      vfx.spawnDamageNumber(`+${ARAM_ECONOMY.killGold} 🪙 HẠ GỤC!`, bot.mesh.position, 'crit');
       sounds.playKill();
       recalcPlayerStats();
+      if (elMatchKda) {
+        elMatchKda.textContent = `${aramMatch.playerKills} / ${aramMatch.playerDeaths}`;
+      }
     }
   });
 
   // 5. Minion Wave Loop
   waveTimer += delta;
-  if (waveTimer >= 20.0) {
+  if (waveTimer >= MATCH_RULES.minionWaveInterval) {
     waveTimer = 0;
     spawnMinionWave();
   }
@@ -1224,8 +1549,10 @@ function animate() {
   for (let i = enemyMinions.length - 1; i >= 0; i--) {
     const m = enemyMinions[i];
     if (m.isDead) {
-      player.gold += 25;
-      vfx.spawnDamageNumber('+25 🪙', m.mesh.position, 'normal');
+      player.gold += ARAM_ECONOMY.minionGold;
+      // ARAM chia XP toàn đội khi lính chết — không cần last-hit
+      player.gainXp(ARAM_ECONOMY.xpPerMinion);
+      vfx.spawnDamageNumber(`+${ARAM_ECONOMY.minionGold} 🪙`, m.mesh.position, 'normal');
       enemyMinions.splice(i, 1);
       recalcPlayerStats();
       continue;
@@ -1272,16 +1599,52 @@ function animate() {
   }
 
   // 7. Structures Update
+  // Hồi sinh Nhà Lính sau 60s (luật ARAM) — phải tick mỗi frame
+  blueStructures.forEach(s => s.tickRespawn(delta));
+
   blueStructures.forEach(s => s.updateTurret(delta, time, enemyMinions, enemyBots, vfx, sounds));
+  // Hồi sinh Nhà Lính phe đỏ sau 60s
+  redStructures.forEach(s => s.tickRespawn(delta));
+
   redStructures.forEach(s => {
     const wasDestroyed = s.isDestroyed;
     s.updateTurret(delta, time, alliedMinions, [player], vfx, sounds);
     if (!wasDestroyed && s.isDestroyed) {
-      player.gold += 150;
-      vfx.spawnDamageNumber('+150 🪙 TRỤ SỤP ĐỔ!', s.group.position, 'crit');
+      aramMatch.turretsDestroyed += 1;
+      player.gold += ARAM_ECONOMY.turretGold;
+      vfx.spawnDamageNumber(`+${ARAM_ECONOMY.turretGold} 🪙 TRỤ SỤP ĐỔ!`, s.group.position, 'crit');
+      sounds.playKill();
       recalcPlayerStats();
+
+      // ARAM: phá Nhà Chính địch = THẮNG TRẬN
+      if (s.type === 'nexus') {
+        showMatchResult(true);
+      }
     }
   });
+
+  // ARAM: kiểm tra điều kiện thắng/thua dựa trên TRẠNG THÁI Nhà Chính.
+  // (Không chỉ dựa vào "transition" vì Nhà Chính có thể bị phá bởi lính/AI hoặc
+  //  bất kỳ nguồn sát thương nào ngoài vòng lặp này.)
+  if (aramMatch.state === MATCH_STATE.RUNNING) {
+    const redNexus = redStructures.find(s => s.type === 'nexus');
+    const blueNexus = blueStructures.find(s => s.type === 'nexus');
+
+    if (redNexus && redNexus.isDestroyed) {
+      showMatchResult(true);   // Phá Nhà Chính Địch -> THẮNG
+    } else if (blueNexus && blueNexus.isDestroyed) {
+      showMatchResult(false);  // Nhà Chính Đồng Minh bị phá -> THUA
+    }
+  }
+
+  // Dừng cập nhật chiến đấu khi trận đã kết thúc
+  if (aramMatch.state !== MATCH_STATE.RUNNING) {
+    vfx.update(delta, camera);
+    camera.position.lerp(player.mesh.position.clone().add(cameraOffset), 1 - Math.exp(-10.0 * delta));
+    camera.lookAt(player.mesh.position.x, 1.2, player.mesh.position.z - 1.5);
+    composer.render();
+    return;
+  }
 
   // 8. Player Skills Update
   const currentEnemies = getAllEnemies();
@@ -1339,6 +1702,18 @@ function animate() {
       iconD.dataset.state = 'mark';
       iconD.innerHTML = '<img src="/images/spells/snowball.png" alt="Mark" />';
     }
+  }
+
+  // ===== MINIMAP: vẽ lại bản đồ thu nhỏ =====
+  if (minimap) {
+    minimap.render({
+      player,
+      blueStructures,
+      redStructures,
+      alliedMinions,
+      enemyMinions,
+      enemyBots
+    });
   }
 
   composer.render();

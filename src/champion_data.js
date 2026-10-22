@@ -25,7 +25,7 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       mp: 100,
       mpperlevel: 0,
       movespeed: 345,
-      armor: 30,
+      armor: 32,
       armorperlevel: 4.6,
       spellblock: 32,
       spellblockperlevel: 2.05,
@@ -37,9 +37,9 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       crit: 0,
       critperlevel: 0,
       attackdamage: 60,
-      attackdamageperlevel: 3,
+      attackdamageperlevel: 2.5,
       attackspeedperlevel: 3.5,
-      attackspeed: 0.697
+      attackspeed: 0.7
     }
   },
   Jinx: {
@@ -48,14 +48,14 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
     title: 'Khẩu Pháo Nổi Loạn',
     partype: 'Mana',
     stats: {
-      hp: 630,
+      hp: 610,
       hpperlevel: 105,
       mp: 260,
       mpperlevel: 50,
       movespeed: 325,
       armor: 26,
       armorperlevel: 4.7,
-      spellblock: 30,
+      spellblock: 33,
       spellblockperlevel: 1.3,
       attackrange: 525,
       hpregen: 3.75,
@@ -65,9 +65,9 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       crit: 0,
       critperlevel: 0,
       attackdamage: 59,
-      attackdamageperlevel: 3.15,
+      attackdamageperlevel: 3,
       attackspeedperlevel: 1,
-      attackspeed: 0.625
+      attackspeed: 0.63
     }
   },
   Zed: {
@@ -95,7 +95,7 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       attackdamage: 63,
       attackdamageperlevel: 3.4,
       attackspeedperlevel: 3.3,
-      attackspeed: 0.651
+      attackspeed: 0.65
     }
   },
   Ashe: {
@@ -104,14 +104,14 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
     title: 'Cung Băng Freljord',
     partype: 'Mana',
     stats: {
-      hp: 640,
+      hp: 610,
       hpperlevel: 101,
       mp: 280,
       mpperlevel: 35,
       movespeed: 325,
       armor: 26,
       armorperlevel: 4.6,
-      spellblock: 30,
+      spellblock: 33,
       spellblockperlevel: 1.3,
       attackrange: 600,
       hpregen: 3.5,
@@ -121,9 +121,9 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       crit: 0,
       critperlevel: 0,
       attackdamage: 59,
-      attackdamageperlevel: 2.95,
-      attackspeedperlevel: 3.33,
-      attackspeed: 0.658
+      attackdamageperlevel: 3,
+      attackspeedperlevel: 3,
+      attackspeed: 0.66
     }
   },
   Darius: {
@@ -137,7 +137,7 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       mp: 263,
       mpperlevel: 58,
       movespeed: 340,
-      armor: 39,
+      armor: 37,
       armorperlevel: 5.2,
       spellblock: 32,
       spellblockperlevel: 2.05,
@@ -151,7 +151,7 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       attackdamage: 64,
       attackdamageperlevel: 5,
       attackspeedperlevel: 1,
-      attackspeed: 0.625
+      attackspeed: 0.63
     }
   },
   Ahri: {
@@ -179,7 +179,7 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       attackdamage: 53,
       attackdamageperlevel: 3,
       attackspeedperlevel: 2.2,
-      attackspeed: 0.668
+      attackspeed: 0.67
     }
   },
   Blitzcrank: {
@@ -237,6 +237,231 @@ export const BUNDLED_CHAMPION_STATS_14_5_1 = {
       attackspeedperlevel: 3.65,
       attackspeed: 0.625
     }
+  },
+  // ---- 8 tướng bổ sung (số liệu thật từ Data Dragon 14.5.1) ----
+  Ezreal: {
+    id: 'Ezreal',
+    name: 'Ezreal',
+    title: 'Nhà Thám Hiểm',
+    partype: 'Mana',
+    stats: {
+      hp: 600,
+      hpperlevel: 102,
+      mp: 375,
+      mpperlevel: 70,
+      movespeed: 325,
+      armor: 24,
+      armorperlevel: 4.7,
+      spellblock: 33,
+      spellblockperlevel: 1.3,
+      attackrange: 550,
+      hpregen: 4,
+      hpregenperlevel: 0.65,
+      mpregen: 8.5,
+      mpregenperlevel: 1,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 60,
+      attackdamageperlevel: 3.75,
+      attackspeedperlevel: 2.5,
+      attackspeed: 0.63,
+    }
+  },
+  Lux: {
+    id: 'Lux',
+    name: 'Lux',
+    title: 'Tiểu Thư Ánh Sáng',
+    partype: 'Mana',
+    stats: {
+      hp: 580,
+      hpperlevel: 99,
+      mp: 480,
+      mpperlevel: 23.5,
+      movespeed: 330,
+      armor: 21,
+      armorperlevel: 5.2,
+      spellblock: 30,
+      spellblockperlevel: 1.3,
+      attackrange: 550,
+      hpregen: 5.5,
+      hpregenperlevel: 0.55,
+      mpregen: 7,
+      mpregenperlevel: 0.8,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 54,
+      attackdamageperlevel: 3.3,
+      attackspeedperlevel: 3,
+      attackspeed: 0.67,
+    }
+  },
+  Malphite: {
+    id: 'Malphite',
+    name: 'Malphite',
+    title: 'Mảnh Vỡ Núi Lửa',
+    partype: 'Mana',
+    stats: {
+      hp: 665,
+      hpperlevel: 104,
+      mp: 280,
+      mpperlevel: 60,
+      movespeed: 335,
+      armor: 40,
+      armorperlevel: 4.95,
+      spellblock: 28,
+      spellblockperlevel: 2.05,
+      attackrange: 125,
+      hpregen: 7,
+      hpregenperlevel: 0.55,
+      mpregen: 7.3,
+      mpregenperlevel: 0.55,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 62,
+      attackdamageperlevel: 4,
+      attackspeedperlevel: 3.4,
+      attackspeed: 0.74,
+    }
+  },
+  Nautilus: {
+    id: 'Nautilus',
+    name: 'Nautilus',
+    title: 'Người Khổng Lồ Biển',
+    partype: 'Mana',
+    stats: {
+      hp: 646,
+      hpperlevel: 100,
+      mp: 400,
+      mpperlevel: 47,
+      movespeed: 325,
+      armor: 39,
+      armorperlevel: 4.95,
+      spellblock: 32,
+      spellblockperlevel: 2.05,
+      attackrange: 175,
+      hpregen: 8.5,
+      hpregenperlevel: 0.55,
+      mpregen: 8.65,
+      mpregenperlevel: 0.5,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 58,
+      attackdamageperlevel: 3.3,
+      attackspeedperlevel: 1,
+      attackspeed: 0.71,
+    }
+  },
+  Katarina: {
+    id: 'Katarina',
+    name: 'Katarina',
+    title: 'Lưỡi Dao Bóng Đêm',
+    partype: 'None',
+    stats: {
+      hp: 672,
+      hpperlevel: 108,
+      mp: 0,
+      mpperlevel: 0,
+      movespeed: 335,
+      armor: 32,
+      armorperlevel: 4.7,
+      spellblock: 32,
+      spellblockperlevel: 2.05,
+      attackrange: 125,
+      hpregen: 7.5,
+      hpregenperlevel: 0.7,
+      mpregen: 0,
+      mpregenperlevel: 0,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 58,
+      attackdamageperlevel: 3.2,
+      attackspeedperlevel: 2.74,
+      attackspeed: 0.66,
+    }
+  },
+  Akali: {
+    id: 'Akali',
+    name: 'Akali',
+    title: 'Sát Thủ Bóng Đêm',
+    partype: 'Energy',
+    stats: {
+      hp: 600,
+      hpperlevel: 119,
+      mp: 200,
+      mpperlevel: 0,
+      movespeed: 345,
+      armor: 23,
+      armorperlevel: 4.7,
+      spellblock: 37,
+      spellblockperlevel: 2.05,
+      attackrange: 125,
+      hpregen: 9,
+      hpregenperlevel: 0.9,
+      mpregen: 50,
+      mpregenperlevel: 0,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 62,
+      attackdamageperlevel: 3.3,
+      attackspeedperlevel: 3.2,
+      attackspeed: 0.63,
+    }
+  },
+  Syndra: {
+    id: 'Syndra',
+    name: 'Syndra',
+    title: 'Nữ Pháp Sư Bóng Đêm',
+    partype: 'Mana',
+    stats: {
+      hp: 583,
+      hpperlevel: 100,
+      mp: 480,
+      mpperlevel: 40,
+      movespeed: 330,
+      armor: 25,
+      armorperlevel: 4.6,
+      spellblock: 30,
+      spellblockperlevel: 1.3,
+      attackrange: 550,
+      hpregen: 6.5,
+      hpregenperlevel: 0.6,
+      mpregen: 8,
+      mpregenperlevel: 0.8,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 54,
+      attackdamageperlevel: 2.9,
+      attackspeedperlevel: 2,
+      attackspeed: 0.66,
+    }
+  },
+  Chogath: {
+    id: 'Chogath',
+    name: 'Cho\'Gath',
+    title: 'Quái Vật Hư Không',
+    partype: 'Mana',
+    stats: {
+      hp: 644,
+      hpperlevel: 94,
+      mp: 270,
+      mpperlevel: 60,
+      movespeed: 345,
+      armor: 38,
+      armorperlevel: 5,
+      spellblock: 32,
+      spellblockperlevel: 2.05,
+      attackrange: 125,
+      hpregen: 9,
+      hpregenperlevel: 0.85,
+      mpregen: 7.2,
+      mpregenperlevel: 0.45,
+      crit: 0,
+      critperlevel: 0,
+      attackdamage: 69,
+      attackdamageperlevel: 4.2,
+      attackspeedperlevel: 1.44,
+      attackspeed: 0.66,
+    }
   }
 };
 
@@ -248,6 +473,14 @@ export const CHAMPION_KEY_MAP = {
   ashe: 'Ashe',
   darius: 'Darius',
   ahri: 'Ahri',
+  ezreal: 'Ezreal',
+  lux: 'Lux',
+  malphite: 'Malphite',
+  nautilus: 'Nautilus',
+  chogath: 'Chogath',
+  katarina: 'Katarina',
+  akali: 'Akali',
+  syndra: 'Syndra',
   soldier: 'Garen',
   robot: 'Blitzcrank',
   blitzcrank: 'Blitzcrank',
@@ -316,7 +549,15 @@ export function calculateStatsAtLevel(rawStats, level = 1) {
   const rangeLol = rawStats.attackrange;
   const range = +(rangeLol * LOL_RANGE_SCALE).toFixed(2);
   const movespeed = rawStats.movespeed;
-  const speed = +(movespeed / 25).toFixed(2); // ~13.0 - 13.8 units/s
+  // ---------------------------------------------------------------------
+  // QUY ĐỔI TỐC ĐỘ DI CHUYỂN CHUẨN LIÊN MINH
+  // ---------------------------------------------------------------------
+  // Cùng tỉ lệ với tầm đánh: 1 unit game = 38.75 đơn vị LoL (LOL_RANGE_SCALE
+  // = 20/775). Nhờ vậy "cảm giác" di chuyển đúng bằng Liên Minh thật:
+  //   Yasuo 345 MS -> 345 * 0.025806 = 8.90 units/s
+  //   Ashe  325 MS ->                 = 8.39 units/s
+  // (Trước đây dùng movespeed / 25 = 13.8 units/s -> NHANH GẤP 1.6 LẦN.)
+  const speed = +(movespeed * LOL_RANGE_SCALE).toFixed(3);
   const attackCooldownMax = +(1.0 / attackspeed).toFixed(2);
   const type = rangeLol > 300 ? 'ranged' : 'melee';
 

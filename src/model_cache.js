@@ -54,23 +54,53 @@ export function parseModel(url, onLoaded) {
   }
 }
 
-// Preload all 12 essential gameplay assets into RAM
-export async function preloadAllModels() {
-  const assets = [
-    '/models/minion_melee_order.glb',
-    '/models/minion_melee_chaos.glb',
-    '/models/minion_ranged_order.glb',
-    '/models/minion_ranged_chaos.glb',
-    '/models/minion_super_order.glb',
-    '/models/minion_super_chaos.glb',
-    '/models/turret_order.glb',
-    '/models/turret_chaos.glb',
-    '/models/inhibitor_order.glb',
-    '/models/inhibitor_chaos.glb',
-    '/models/nexus_order.glb',
-    '/models/nexus_chaos.glb'
-  ];
+// ---------------------------------------------------------------------------
+// PRELOAD THEO MỨC ƯU TIÊN (thay vì tải hết 12 model cùng lúc)
+// ---------------------------------------------------------------------------
+// Trước đây tải song song cả 12 file (~12MB) ngay khi vào game, làm chậm
+// thời điểm chơi được. Giờ chia 2 đợt:
+//   - Đợt 1 (bắt buộc): những gì XUẤT HIỆN NGAY khi vào trận
+//   - Đợt 2 (nền): tải rảnh sau khi đã chơi được
+// Model tướng KHÔNG preload ở đây — chỉ tải đúng tướng đang chơi.
+// ---------------------------------------------------------------------------
+const TIER1 = [
+  '/models/minion_melee_order.glb',
+  '/models/minion_melee_chaos.glb',
+  '/models/minion_ranged_order.glb',
+  '/models/minion_ranged_chaos.glb'
+];
 
-  await Promise.all(assets.map(url => fetchBufferOnce(url)));
-  console.log('✅ [ModelCache] Đã nạp sẵn toàn bộ 12 mô hình vào RAM (Buffer Cache).');
+const TIER2 = [
+  '/models/minion_super_order.glb',
+  '/models/minion_super_chaos.glb',
+  '/models/turret_order.glb',
+  '/models/turret_chaos.glb',
+  '/models/inhibitor_order.glb',
+  '/models/inhibitor_chaos.glb',
+  '/models/nexus_order.glb',
+  '/models/nexus_chaos.glb'
+];
+
+export async function preloadAllModels() {
+  // Đợt 1: phải có trước khi lính xuất hiện
+  await Promise.all(TIER1.map(url => fetchBufferOnce(url)));
+  console.log('✅ [ModelCache] Đợt 1 xong (lính cơ bản) — game sẵn sàng chơi.');
+
+  // Đợt 2: tải nền, không chặn gameplay
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(() => loadTier2(), { timeout: 8000 });
+  } else {
+    setTimeout(loadTier2, 1200);
+  }
+}
+
+function loadTier2() {
+  Promise.all(TIER2.map(url => fetchBufferOnce(url)))
+    .then(() => console.log('✅ [ModelCache] Đợt 2 xong (trụ/nhà/lính siêu cấp).'))
+    .catch(() => {});
+}
+
+// Tải riêng model 1 tướng (chỉ khi cần) — tránh tải cả 14 tướng.
+export function preloadChampionModel(url) {
+  return fetchBufferOnce(url);
 }

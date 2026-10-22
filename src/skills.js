@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createVfxSprite, createVfxParticles, updateVfxParticles, createVfxGroundRing, loadVfxTexture } from './vfx_assets.js';
 import { SKILL_CATALOG, getAllSkills } from './skill_catalog.js';
 import { gltfLoader } from './champion.js';
 import { create3DShuriken, create3DBattleAxe, create3DAnchor, create3DTornado, create3DMysticLance } from './skill_models.js';
@@ -341,15 +342,23 @@ export class SkillSystem {
 
       // 4. MAGES
       case 'lux_q':
+        // Tầm thật LuxQ = 1175 LoL units = 30.3 units
         this.castProjectile({
           dir,
           speed: 32,
-          range: 30,
+          range: 30.3,
           damage: this.getScaledDamage(130, 0, 0.75),
           color: 0xfef08a,
           emissive: 0xfef08a,
           scale: 0.6,
-          pierce: 2
+          pierce: 2,
+          // VFX thật: quả cầu ánh sáng của Riot
+          vfx: {
+            champ: 'lux',
+            files: ['lux_base_q_spark.png', 'lux_base_q_gradient_1.png'],
+            size: 1.6,
+            color: 0xfef9c3
+          }
         });
         this.sounds.playCastQ();
         return true;
@@ -371,7 +380,7 @@ export class SkillSystem {
         return true;
 
       case 'ahri_w':
-        this.castAhriW(targets);
+        this.castAhriW(targets, dir);
         return true;
 
       case 'ahri_e':
@@ -554,6 +563,16 @@ export class SkillSystem {
       group.add(body);
     }
 
+    // VFX thật: năng lượng + khói sau đuôi tên lửa
+    const rocketEnergy = createVfxSprite('jinx', 'jinx_base_r_energy_01.png', {
+      size: 3.2, color: 0xfca5a5, opacity: 0.95
+    });
+    if (rocketEnergy) group.add(rocketEnergy);
+    const rocketSmoke = createVfxSprite('jinx', 'jinx_base_r_mis_addsmoke.png', {
+      size: 4.0, color: 0xfed7aa, opacity: 0.7
+    });
+    if (rocketSmoke) group.add(rocketSmoke);
+
     group.position.copy(this.player.mesh.position).add(new THREE.Vector3(0, 1.5, 0));
     group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
     this.scene.add(group);
@@ -589,6 +608,12 @@ export class SkillSystem {
       arrow.rotation.x = Math.PI / 2;
       group.add(arrow);
     }
+
+    // VFX thật: vệt khói băng bao quanh mũi tên
+    const iceTrail = createVfxSprite('ashe', 'ashe_base_r_smoke_trail.png', {
+      size: 4.5, color: 0x67e8f9, opacity: 0.9
+    });
+    if (iceTrail) group.add(iceTrail);
 
     group.position.copy(this.player.mesh.position).add(new THREE.Vector3(0, 1.4, 0));
     group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
@@ -732,6 +757,13 @@ export class SkillSystem {
     const startPos = this.player.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0));
     group.position.copy(startPos);
     group.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+
+    // VFX thật: vệt sáng bay theo sau mũi Mystic Shot
+    const trail = createVfxSprite('ezreal', 'ezreal_base_q_mis_trail.png', {
+      size: 1.9, color: 0xa5f3fc, opacity: 0.85
+    });
+    if (trail) group.add(trail);
+
     this.scene.add(group);
 
     this.projectiles.push({
@@ -823,21 +855,51 @@ export class SkillSystem {
 
   // Ahri Orb (out & back)
   castAhriOrb(dir) {
-    const orb = new THREE.Mesh(
-      new THREE.SphereGeometry(0.65, 16, 16),
-      new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 2.5 })
-    );
+    // -------------------------------------------------------------------
+    // VFX THẬT CỦA RIOT: dùng texture orb hồ ly chính thức
+    //   ahri_base_orb_fox_01.png (256x256) + ahri_base_q_orbbackground.png
+    // thay cho hình cầu Three.js trơn như trước.
+    // -------------------------------------------------------------------
+    const orb = new THREE.Group();
+
+    // Lớp nền quả cầu
+    const bg = createVfxSprite('ahri', 'ahri_base_q_orbbackground.png', {
+      size: 1.9, color: 0x9f7aea, opacity: 0.9
+    });
+    if (bg) orb.add(bg);
+
+    // Lớp hình hồ ly (nhìn rõ đặc trưng Ahri)
+    const fox = createVfxSprite('ahri', 'ahri_base_orb_fox_01.png', {
+      size: 1.45, color: 0xd8b4fe, opacity: 1
+    });
+    if (fox) orb.add(fox);
+
+    // Nếu texture không tải được -> fallback hình cầu để không mất chiêu
+    if (!bg && !fox) {
+      const fb = new THREE.Mesh(
+        new THREE.SphereGeometry(0.65, 16, 16),
+        new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x38bdf8, emissiveIntensity: 2.5 })
+      );
+      orb.add(fb);
+    }
+
     orb.position.copy(this.player.mesh.position).add(new THREE.Vector3(0, 1.3, 0));
     this.scene.add(orb);
 
+    // AhriQ: tầm thật 970 LoL units = 25.03 units (trước là 24)
     this.projectiles.push({
       mesh: orb,
       dir,
       speed: 30,
-      range: 24,
+      range: 25.03,
       traveled: 0,
       damage: this.getScaledDamage(110, 0, 0.65),
       radius: 1.2,
+      // AhriQ XUYÊN QUA mọi kẻ địch trên đường bay (cả lượt đi lẫn về).
+      // Trước đây pierce = undefined nên orb dừng ngay khi trúng mục tiêu
+      // đầu tiên và biến mất, không bao giờ quay về tay Ahri.
+      pierce: 99,
+      hits: 0,
       returning: false,
       playerRef: this.player,
       type: 'ahri_orb'
@@ -986,19 +1048,44 @@ export class SkillSystem {
   }
 
   // Generic Projectile helper
-  castProjectile({ dir, speed, range, damage, color, emissive, scale = 0.5, onHit, pierce = 1 }) {
+  castProjectile({ dir, speed, range, damage, color, emissive, scale = 0.5, onHit, pierce = 1, vfx: vfxSpec }) {
     const startPos = this.player.mesh.position.clone().add(new THREE.Vector3(0, 1.3, 0));
-    const geo = new THREE.ConeGeometry(0.35 * scale, 1.8 * scale, 8);
-    geo.rotateX(Math.PI / 2);
-    const mat = new THREE.MeshStandardMaterial({
-      color,
-      emissive,
-      emissiveIntensity: 2.5,
-      roughness: 0.1
-    });
-    const mesh = new THREE.Mesh(geo, mat);
+
+    let mesh;
+    // -------------------------------------------------------------------
+    // Nếu chiêu có khai báo texture VFX thật của Riot -> dùng nó.
+    // vfxSpec = { champ: 'ahri', files: ['...png', ...], size, color, trail }
+    // -------------------------------------------------------------------
+    if (vfxSpec && vfxSpec.champ && vfxSpec.files) {
+      mesh = new THREE.Group();
+      for (let i = 0; i < vfxSpec.files.length; i++) {
+        const sp = createVfxSprite(vfxSpec.champ, vfxSpec.files[i], {
+          size: (vfxSpec.size ?? 1.6) * (i === 0 ? 1 : 0.75),
+          color: vfxSpec.color ?? 0xffffff,
+          opacity: i === 0 ? 1 : 0.75
+        });
+        if (sp) mesh.add(sp);
+      }
+      // Không nạp được texture nào -> quay về hình nón cũ
+      if (mesh.children.length === 0) mesh = null;
+    }
+
+    if (!mesh) {
+      const geo = new THREE.ConeGeometry(0.35 * scale, 1.8 * scale, 8);
+      geo.rotateX(Math.PI / 2);
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        emissive,
+        emissiveIntensity: 2.5,
+        roughness: 0.1
+      });
+      mesh = new THREE.Mesh(geo, mat);
+    }
+
     mesh.position.copy(startPos);
-    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+    if (!mesh.isGroup) {
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), dir);
+    }
     this.scene.add(mesh);
 
     this.projectiles.push({
@@ -1059,6 +1146,17 @@ export class SkillSystem {
   }
 
   update(delta, targets = []) {
+    // 0. Cập nhật cụm hạt VFX (texture thật của Riot) — tự huỷ khi hết hạn
+    if (this.vfxParticleGroups && this.vfxParticleGroups.length) {
+      for (let i = this.vfxParticleGroups.length - 1; i >= 0; i--) {
+        const g = this.vfxParticleGroups[i];
+        if (updateVfxParticles(g, delta)) {
+          this.scene.remove(g);
+          this.vfxParticleGroups.splice(i, 1);
+        }
+      }
+    }
+
     // 1. Cooldowns
     for (const key in this.cooldowns) {
       if (this.cooldowns[key] > 0) {
@@ -1075,6 +1173,15 @@ export class SkillSystem {
     }
 
     // 2b. Champion Buffs & Stacks Timers
+    // Ashe Q: hết 5 giây thì tắt buff
+    if (this.asheQTimer > 0) {
+      this.asheQTimer -= delta;
+      if (this.asheQTimer <= 0) {
+        this.asheQActive = false;
+        this.asheQStacks = 0;
+      }
+    }
+
     if (this.yasuoQTimer > 0) {
       this.yasuoQTimer -= delta;
       if (this.yasuoQTimer <= 0) {
@@ -1107,11 +1214,16 @@ export class SkillSystem {
           const retDir = new THREE.Vector3().subVectors(this.player.mesh.position, p.mesh.position);
           retDir.y = 0;
           if (retDir.length() < 1.5) {
+            // Orb về tới tay Ahri -> biến mất
             this.scene.remove(p.mesh);
             this.projectiles.splice(i, 1);
             continue;
           }
           p.dir.copy(retDir.normalize());
+          // Lượt về phải gây sát thương lại lên các mục tiêu MỚI.
+          // p.hits đếm tổng số lần trúng nên chỉ cần reset để lần này
+          // có thể đánh trúng những kẻ địch mà lượt đi đã bỏ qua.
+          // (Riot cho Q hit 2 lần: lượt ra và lượt về.)
         }
       }
 
@@ -1211,7 +1323,12 @@ export class SkillSystem {
         }
       }
 
-      if (hit || p.traveled >= p.range) {
+      // Đạn có khả năng QUAY VỀ (Ahri Q) chỉ bị xoá khi trúng đích —
+      // phần "quay về" ở trên đã tự xoá khi orb về tới người chơi.
+      // Trước đây điều kiện traveled >= range xoá luôn orb NGAY khi nó
+      // vừa chạm tầm xa nhất, nên orb không bao giờ bay về.
+      const isReturningType = p.type === 'ahri_orb';
+      if (hit || (!isReturningType && p.traveled >= p.range)) {
         this.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);
       }
@@ -1486,7 +1603,8 @@ export class SkillSystem {
     const pPos = this.player.mesh.position;
     const toTarget = new THREE.Vector3().subVectors(targetPoint, pPos);
     toTarget.y = 0;
-    const dist = Math.min(12.0, toTarget.length());
+    // ZedW castRange 700 LoL units = 18.06 units (trước để 12 -> quá ngắn)
+    const dist = Math.min(18.06, toTarget.length());
     const dir = toTarget.clone().normalize();
     const shadowPos = pPos.clone().addScaledVector(dir, dist);
 
@@ -1558,7 +1676,8 @@ export class SkillSystem {
       if (!tPos) return;
       const toT = new THREE.Vector3().subVectors(tPos, pPos);
       const dist = toT.length();
-      if (dist <= 11.0 && toT.normalize().dot(dir) > 0.5) {
+      // DariusE là CONE, tầm thật 550 LoL units = 14.19 units
+      if (dist <= 14.19 && toT.normalize().dot(dir) > 0.5) {
         t.takeDamage(damage, this.vfx);
         // Kéo mục tiêu về cự ly cận chiến của Darius
         if (t.mesh) {
@@ -1643,39 +1762,61 @@ export class SkillSystem {
 
   // Ahri E: Hôn Gió (Charm - Bắn trái tim pha lê hồng)
   castAhriE(dir) {
+    // AhriE (Hôn Gió): tầm thật 975 LoL units = 25.2 units
     const damage = this.getScaledDamage(120, 0, 0.7);
     this.castProjectile({
       dir,
       speed: 30,
-      range: 28,
+      range: 25.2,
       damage,
       color: 0xf472b6,
       emissive: 0xf472b6,
       scale: 0.6,
-      charm: true
+      charm: true,
+      // VFX thật: trái tim hôn gió + khói hồng của Riot
+      vfx: {
+        champ: 'ahri',
+        files: ['ahri_base_e_heart_01.png', 'ahri_base_e_heart_02.png'],
+        size: 1.8,
+        color: 0xf9a8d4
+      }
     });
     this.sounds.playCastQ();
   }
 
   // Ashe Q: Chú Tâm Tiễn (Bắn loạt 5 mũi tên băng liên hoàn)
   castAsheQ(dir) {
-    const damage = this.getScaledDamage(45, 0.35, 0);
-    for (let i = -2; i <= 2; i++) {
+    // -------------------------------------------------------------------
+    // AsheQ trong LMHT là SELF (bật/tắt), KHÔNG phải bắn 5 mũi tên.
+    // Dữ liệu Riot: mTargetingTypeData = "Self", castRange = 400.
+    // Cơ chế thật: Ashe tập trung -> các đòn đánh thường kế tiếp bắn ra
+    // loạt 5 mũi tên băng (flurry) trong vài giây, mỗi mũi gây damage.
+    // Code cũ cho bắn 5 projectile ngay lập tức -> sai hoàn toàn.
+    // -------------------------------------------------------------------
+    this.asheQActive = true;
+    this.asheQTimer = 5.0;   // hiệu lực 5 giây
+    this.asheQStacks = 5;    // 5 đòn đánh kế tiếp được tăng cường
+
+    const dmg = this.getScaledDamage(45, 0.35, 0);
+    this.asheQBonusDamage = dmg;
+
+    this.vfx.spawnDamageNumber('❄️ CHÚ TÂM TIỄN! 5 đòn kế tiếp', this.player.mesh.position, 'heal');
+    this.vfx.spawnIceExplosion(this.player.mesh.position, 0x67e8f9, 18);
+
+    // VFX thật của Riot: hào quang băng quanh cung
+    const aura = createVfxGroundRing('ashe', 'ashe_base_q_buf.png', 1.8, { opacity: 0.85 });
+    if (aura) {
+      aura.position.copy(this.player.mesh.position);
+      aura.position.y = 0.06;
+      this.scene.add(aura);
       setTimeout(() => {
-        const spread = i * 0.05;
-        const shootDir = dir.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
-        this.castProjectile({
-          dir: shootDir,
-          speed: 36,
-          range: 28,
-          damage,
-          color: 0x67e8f9,
-          emissive: 0x38bdf8,
-          scale: 0.4
-        });
-        this.sounds.playCastQ();
-      }, (i + 2) * 50);
+        if (aura.parent) this.scene.remove(aura);
+        aura.geometry.dispose();
+        aura.material.dispose();
+      }, 5000);
     }
+
+    this.sounds.playCastQ();
   }
 
   // Ashe E: Ưng Tiễn (Chim ưng do thám)
@@ -1726,16 +1867,24 @@ export class SkillSystem {
 
   // Ezreal W: Tinh Hoa Tuôn Chảy
   castEzrealW(dir) {
+    // Tầm thật EzrealW = 1150 LoL units = 29.7 units
     const damage = this.getScaledDamage(100, 0.6, 0.8);
     this.castProjectile({
       dir,
       speed: 32,
-      range: 28,
+      range: 29.7,
       damage,
       color: 0xfacc15,
       emissive: 0xfde047,
       scale: 0.55,
-      pierce: 1
+      pierce: 1,
+      // VFX thật: quả cầu năng lượng của Riot
+      vfx: {
+        champ: 'ezreal',
+        files: ['ezreal_base_w_orb.png', 'ezreal_base_w_cas_tex.png'],
+        size: 1.5,
+        color: 0xfde047
+      }
     });
     this.sounds.playCastQ();
   }
@@ -1749,13 +1898,33 @@ export class SkillSystem {
   }
 
   // Ahri W: Lửa Hồ Ly (3 ngọn lửa tự nhắm địch)
-  castAhriW(targets) {
+  castAhriW(targets, aimDir) {
+    // -------------------------------------------------------------------
+    // AhriW (Lửa Hồ Ly): 3 ngọn lửa tự nhắm địch gần nhất.
+    // LỖI CŨ: nếu không có địch trong 16 units thì KHÔNG bắn gì cả —
+    // bấm W giữa đường hoàn toàn vô tác dụng, khác hẳn LMHT.
+    // ĐÚNG: luôn phóng 3 tia, ưu tiên nhắm địch; nếu không có địch thì
+    // bay theo hướng người chơi đang chỉ.
+    // -------------------------------------------------------------------
     const damage = this.getScaledDamage(65, 0, 0.35);
+    const W_RANGE = 15.5; // 600 LoL units = 15.48
+
+    // Hướng dự phòng khi không có địch: hướng chuột, hoặc hướng mặt tướng
+    let fallbackDir = aimDir ? aimDir.clone() : null;
+    if (!fallbackDir) {
+      const rot = this.player.mesh.rotation.y;
+      fallbackDir = new THREE.Vector3(Math.sin(rot), 0, Math.cos(rot));
+    }
+    fallbackDir.y = 0;
+    if (fallbackDir.lengthSq() < 0.001) fallbackDir.set(0, 0, -1);
+    fallbackDir.normalize();
+
     for (let i = 0; i < 3; i++) {
       setTimeout(() => {
+        // Tìm địch gần nhất trong tầm W
         let nearest = null;
-        let minDist = 16.0;
-        targets.forEach(t => {
+        let minDist = W_RANGE;
+        (targets || []).forEach(t => {
           if (t.isDead) return;
           const pos = t.mesh ? t.mesh.position : t.group?.position;
           if (pos) {
@@ -1763,28 +1932,74 @@ export class SkillSystem {
             if (d < minDist) { minDist = d; nearest = t; }
           }
         });
+
+        // Xác định hướng bay: tới địch nếu có, ngược lại theo hướng chỉ định
+        let d;
         if (nearest) {
           const tPos = nearest.mesh ? nearest.mesh.position : nearest.group.position;
-          const d = new THREE.Vector3().subVectors(tPos, this.player.mesh.position).normalize();
-          this.castProjectile({
-            dir: d,
-            speed: 32,
-            range: 20,
-            damage,
-            color: 0x38bdf8,
-            emissive: 0x67e8f9,
-            scale: 0.35
-          });
-          this.sounds.playCastQ();
+          d = new THREE.Vector3().subVectors(tPos, this.player.mesh.position);
+        } else {
+          d = fallbackDir.clone();
         }
+        d.y = 0;
+        if (d.lengthSq() < 0.001) d.set(0, 0, -1);
+        d.normalize();
+
+        // 3 tia hơi tản ra để nhìn rõ là 3 ngọn lửa
+        const spread = (i - 1) * 0.14;
+        d.applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
+
+        this.castProjectile({
+          dir: d,
+          speed: 32,
+          range: W_RANGE,
+          damage,
+          color: 0x38bdf8,
+          emissive: 0x67e8f9,
+          scale: 0.35,
+          // VFX thật: ngọn lửa hồ ly + vệt lửa của Riot
+          vfx: {
+            champ: 'ahri',
+            files: ['ahri_base_w_fire2x2.png', 'ahri_base_fireshapes_00.png'],
+            size: 1.2,
+            color: 0x7dd3fc
+          }
+        });
+        this.sounds.playCastQ();
       }, i * 120);
     }
   }
 
   // Ahri R: Phi Hồ (Lướt nhanh)
   castAhriR(targetPoint, targets) {
+    // AhriR: dash 450 LoL units = 11.6 units (trước đây để 8.5 -> quá ngắn)
     const damage = this.getScaledDamage(180, 0, 0.6);
-    this.castBlink(targetPoint, 8.5, damage, targets);
+
+    // VFX thật: vòng sáng dưới đất + hào quang khi lướt (texture R của Riot)
+    const ring = createVfxGroundRing('ahri', 'ahri_base_r_buf_ground.png', 2.6, { opacity: 0.9 });
+    if (ring) {
+      ring.position.x = this.player.mesh.position.x;
+      ring.position.z = this.player.mesh.position.z;
+      this.scene.add(ring);
+      setTimeout(() => {
+        this.scene.remove(ring);
+        ring.geometry.dispose();
+        ring.material.dispose();
+      }, 700);
+    }
+
+    // Cụm hạt hào quang tỏa ra
+    const burst = createVfxParticles('ahri', ['ahri_base_r_aura_glow.png', 'ahri_base_r_airbullet.png'], {
+      count: 12, spread: 2, size: 1.1, lifetime: 0.6, speed: 6
+    });
+    if (burst && burst.children.length) {
+      burst.position.copy(this.player.mesh.position).add(new THREE.Vector3(0, 1.2, 0));
+      this.scene.add(burst);
+      this.vfxParticleGroups = this.vfxParticleGroups || [];
+      this.vfxParticleGroups.push(burst);
+    }
+
+    this.castBlink(targetPoint, 11.6, damage, targets);
   }
 
   // Malphite W: Nắm Đấm Chấn Động
@@ -1838,12 +2053,30 @@ export class SkillSystem {
 
   // Cho'Gath E: Phóng Gai
   castChogathE(dir) {
+    // -------------------------------------------------------------------
+    // Cho'Gath E (Vorpal Spikes) — dữ liệu Riot: mTargetingTypeData = "Self",
+    // tags = ["Trait_AttackReset", "Trait_AoE"], castRange = 40, castRadius = 270.
+    // Đây là BUFF ĐÒN ĐÁNH: 3 đòn kế tiếp bắn gai xuyên qua mục tiêu,
+    // KHÔNG phải bắn projectile ngay khi bấm E.
+    // -------------------------------------------------------------------
+    this.chogathEActive = true;
+    this.chogathEStacks = 3;
+    this.chogathEStacksMax = 3;
     const damage = this.getScaledDamage(80, 0.4, 0.4);
+    this.chogathEBonus = damage;
+
+    this.vfx.spawnDamageNumber('🌵 GAI XUYÊN PHÁ! 3 đòn kế tiếp', this.player.mesh.position, 'heal');
+    this.sounds.playCastQ();
+    return;
+  }
+
+  // Bắn 1 gai của Cho'Gath E (gọi từ đòn đánh thường)
+  fireChogathSpike(dir) {
     this.castProjectile({
       dir,
       speed: 32,
       range: 22,
-      damage,
+      damage: this.chogathEBonus || this.getScaledDamage(80, 0.4, 0.4),
       color: 0x15803d,
       emissive: 0x4ade80,
       scale: 0.5,
@@ -1887,7 +2120,7 @@ export class SkillSystem {
       this.castProjectile({
         dir: shootDir,
         speed: 32,
-        range: 16,
+        range: 14.19,
         damage,
         color: 0x10b981,
         emissive: 0x34d399,
@@ -1899,20 +2132,23 @@ export class SkillSystem {
 
   // Akali W: Bom Khói
   castAkaliW(targetPoint) {
-    this.castAoEZone(targetPoint, 4.5, 50, 0x064e3b);
+    // AkaliW: castRadius 210 LoL = 5.42 units (vùng khói thật)
+    this.castAoEZone(targetPoint, 5.42, 50, 0x064e3b);
     this.vfx.spawnDamageNumber('BOM KHÓI TÀNG HÌNH!', this.player.mesh.position, 'heal');
   }
 
   // Syndra Q: Quả Cầu Bóng Tối
   castSyndraQ(targetPoint) {
     const damage = this.getScaledDamage(120, 0, 0.75);
-    this.castAoEZone(targetPoint, 3.5, damage, 0x7c3aed);
+    // SyndraQ: castRadius 180 LoL = 4.65 units
+    this.castAoEZone(targetPoint, 4.65, damage, 0x7c3aed);
   }
 
   // Syndra W: Ý Lực
   castSyndraW(targetPoint) {
     const damage = this.getScaledDamage(140, 0, 0.85);
-    this.castAoEZone(targetPoint, 4.0, damage, 0x6d28d9);
+    // SyndraW: vùng nổ 5 units, tầm ném 925 LoL = 23.87 units
+    this.castAoEZone(targetPoint, 5.0, damage, 0x6d28d9);
   }
 
   // Syndra R: Bùng Nổ Sức Mạnh (Bão cầu ma thuật)

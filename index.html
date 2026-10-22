@@ -21,150 +21,190 @@
     <!-- Floating Damage Layer -->
     <div id="damage-layer"></div>
 
-    <!-- Top Header & Instructions -->
-    <div class="top-header">
-      <div class="title-badge">⚔️ ARAM: MAYHEM (HỖN LOẠN - QUEUE #2400) - HOWLING ABYSS ⚔️</div>
-      <div class="controls-hint">
-        <span>Chuột phải:</span> Di chuyển / Tấn công | 
-        <span>N:</span> Chọn Lõi Nâng Cấp Mayhem | 
-        <span>P:</span> Cửa Hàng | 
-        <span>A / C:</span> Tầm đánh | 
-        <span>Q, W, E, R:</span> Kỹ năng chuẩn LMHT | 
-        <span>D:</span> Cầu tuyết | 
-        <span>Space:</span> Khóa camera
+    <!-- ====================================================================
+         THANH ĐIỂM SỐ TRÊN CÙNG (League of Legends Scoreboard Style)
+         Đội Xanh (Đồng Minh) | Đồng hồ trận | Đội Đỏ (Địch)
+         ==================================================================== -->
+    <div class="lol-scoreboard">
+      <div class="lol-team lol-team-blue">
+        <div class="team-name">ĐỒNG MINH</div>
+        <div class="team-score" id="lol-score-blue">0</div>
+      </div>
+
+      <div class="lol-match-center">
+        <div class="lol-match-timer" id="lol-match-timer">00:00</div>
+        <div class="lol-match-mode" id="aram-mode-name">ARAM: HỖN LOẠN</div>
+      </div>
+
+      <div class="lol-team lol-team-red">
+        <div class="team-score" id="lol-score-red">0</div>
+        <div class="team-name">KẺ THÙ</div>
       </div>
     </div>
 
-    <!-- League MOBA HUD at the bottom -->
-    <div class="moba-hud">
-      <!-- Avatar -->
-      <div class="avatar-frame" id="avatar-frame">
-        <span id="avatar-icon">🌪️</span>
-        <div class="level-badge" id="hud-level">1</div>
-      </div>
+    <!-- Nút điều khiển phụ (góc trên trái) -->
+    <div class="lol-utility-bar">
+      <button id="btn-open-customizer" class="lol-utility-btn" title="Tùy biến bộ kỹ năng (Q/W/E/R)">
+        ⚡ <span>TÙY BIẾN CHIÊU</span>
+      </button>
+      <button id="btn-switch-hero" class="lol-utility-btn" title="Đổi tướng ARAM (Bench / Reroll)">
+        🎭 <span>ĐỔI TƯỚNG</span>
+      </button>
+      <button id="btn-upload-model" class="lol-utility-btn" title="Nạp file .glb từ Sketchfab">
+        📥 <span>NẠP 3D</span>
+      </button>
+      <input type="file" id="input-model-file" accept=".glb,.gltf" style="display: none;" />
+    </div>
 
-      <!-- HUD Buttons Column -->
-      <div class="hud-buttons-col">
-        <button id="btn-open-customizer" class="btn-customize-skills" title="Nhấp để tùy chọn bộ kỹ năng cho tướng">
-          ⚡ TÙY BIẾN CHIÊU
-        </button>
-        <button id="btn-switch-hero" class="btn-switch-hero" title="Đổi tướng 3D (Soldier / Ninja / Fox / Ahri / Robot)">
-          🎭 ĐỔI TƯỚNG 3D
-        </button>
-        <button id="btn-upload-model" class="btn-upload-model" title="Tải file .glb từ Sketchfab về và chọn để nạp vào game!">
-          📥 NẠP 3D SKETCHFAB
-        </button>
-        <input type="file" id="input-model-file" accept=".glb,.gltf" style="display: none;" />
-      </div>
+    <!-- Gợi ý phím tắt (thu gọn, góc dưới trái) -->
+    <div class="lol-controls-hint">
+      <span>Chuột phải</span> di chuyển · <span>Q W E R</span> kỹ năng · <span>D</span> cầu tuyết ·
+      <span>P</span> cửa hàng · <span>N</span> lõi · <span>A/C</span> tầm đánh · <span>Space</span> khóa cam
+    </div>
 
-      <!-- Center Bars & Skills -->
-      <div class="center-hud">
-        <!-- HP / MP Bars -->
-        <div class="resource-bars">
-          <div class="bar-wrapper">
-            <div class="bar-fill hp" id="hud-hp-bar"></div>
-            <div class="bar-text" id="hud-hp-text">1200 / 1200</div>
+    <!-- ====================================================================
+         HUD CHUẨN LIÊN MINH HUYỀN THOẠI
+         Trái: Chân dung + cấp | Giữa: HP/MP + Kỹ năng | Phải: Trang bị + Vàng
+         Dưới cùng: Minimap (phải) + chỉ số
+         ==================================================================== -->
+    <div class="lol-hud">
+
+      <!-- ===== CỤM TRÁI: CHÂN DUNG TƯỚNG ===== -->
+      <div class="lol-portrait-cluster">
+        <div class="lol-portrait-frame" id="avatar-frame">
+          <span id="avatar-icon">🌪️</span>
+          <div class="lol-level-badge" id="hud-level">1</div>
+        </div>
+        <div class="lol-portrait-bars">
+          <div class="lol-bar lol-bar-hp">
+            <div class="lol-bar-fill" id="hud-hp-bar"></div>
+            <div class="lol-bar-text" id="hud-hp-text">1200 / 1200</div>
           </div>
-          <div class="bar-wrapper">
-            <div class="bar-fill mp" id="hud-mp-bar"></div>
-            <div class="bar-text" id="hud-mp-text">600 / 600</div>
+          <div class="lol-bar lol-bar-mp">
+            <div class="lol-bar-fill" id="hud-mp-bar"></div>
+            <div class="lol-bar-text" id="hud-mp-text">600 / 600</div>
           </div>
         </div>
+      </div>
 
-        <!-- Skills: Q W E R and D (Snowball) -->
-        <div class="skills-container">
+      <!-- ===== CỤM GIỮA: KỸ NĂNG ===== -->
+      <div class="lol-abilities-cluster">
+        <div class="lol-abilities-row">
+          <!-- Passive -->
+          <div class="lol-ability lol-ability-passive" title="Nội tại">
+            <div class="lol-ability-inner"><span class="lol-ability-icon">✦</span></div>
+          </div>
+
           <!-- Q -->
-          <div class="skill-slot" id="slot-Q" title="Q: Băng Tiễn (Frost Lance)">
-            <span class="skill-key">Q</span>
-            <span class="skill-icon">❄️</span>
-            <span class="skill-mana">40</span>
+          <div class="lol-ability" id="slot-Q" title="Q">
+            <div class="lol-ability-inner"><span class="lol-ability-icon">❄️</span></div>
+            <span class="lol-key">Q</span>
+            <span class="lol-mana-cost">40</span>
             <div class="cooldown-overlay" id="cd-Q"></div>
           </div>
 
           <!-- W -->
-          <div class="skill-slot" id="slot-W" title="W: Bão Tuyết Vực Thẳm (Blizzard)">
-            <span class="skill-key">W</span>
-            <span class="skill-icon">🌀</span>
-            <span class="skill-mana">70</span>
+          <div class="lol-ability" id="slot-W" title="W">
+            <div class="lol-ability-inner"><span class="lol-ability-icon">🌀</span></div>
+            <span class="lol-key">W</span>
+            <span class="lol-mana-cost">70</span>
             <div class="cooldown-overlay" id="cd-W"></div>
           </div>
 
           <!-- E -->
-          <div class="skill-slot" id="slot-E" title="E: Lướt Băng Giá (Frost Dash)">
-            <span class="skill-key">E</span>
-            <span class="skill-icon">💨</span>
-            <span class="skill-mana">50</span>
+          <div class="lol-ability" id="slot-E" title="E">
+            <div class="lol-ability-inner"><span class="lol-ability-icon">💨</span></div>
+            <span class="lol-key">E</span>
+            <span class="lol-mana-cost">50</span>
             <div class="cooldown-overlay" id="cd-E"></div>
           </div>
 
           <!-- R -->
-          <div class="skill-slot" id="slot-R" title="R: Đại Pháo Laser Băng Tuyết (Mega Beam)">
-            <span class="skill-key">R</span>
-            <span class="skill-icon">⚡</span>
-            <span class="skill-mana">100</span>
+          <div class="lol-ability lol-ability-ult" id="slot-R" title="R">
+            <div class="lol-ability-inner"><span class="lol-ability-icon">⚡</span></div>
+            <span class="lol-key">R</span>
+            <span class="lol-mana-cost">100</span>
             <div class="cooldown-overlay" id="cd-R"></div>
           </div>
 
           <!-- D (Snowball) -->
-          <div class="skill-slot summoner-spell" id="slot-D" title="D: Cầu Tuyết ARAM (Mark / Dash)">
-            <span class="skill-key">D</span>
-            <span class="skill-icon" id="icon-D">⚪</span>
-            <span class="skill-mana">0</span>
+          <div class="lol-ability lol-ability-summoner" id="slot-D" title="D: Cầu Tuyết ARAM (Mark / Dash)">
+            <div class="lol-ability-inner"><span class="lol-ability-icon" id="icon-D">⚪</span></div>
+            <span class="lol-key">D</span>
             <div class="cooldown-overlay" id="cd-D"></div>
           </div>
         </div>
+
+        <!-- Thanh kinh nghiệm -->
+        <div class="lol-xp-bar"><div class="lol-xp-fill" id="lol-xp-fill"></div></div>
       </div>
 
-      <!-- Adversator 6-Slot Inventory -->
-      <div class="inventory-section">
-        <div class="section-label">TRANG BỊ (6 Ô)</div>
-        <div class="inventory-grid">
-          <div class="inv-slot" data-slot="0" title="Ô 1 (Click để bán)"><div class="inv-inner"></div></div>
-          <div class="inv-slot" data-slot="1" title="Ô 2 (Click để bán)"><div class="inv-inner"></div></div>
-          <div class="inv-slot" data-slot="2" title="Ô 3 (Click để bán)"><div class="inv-inner"></div></div>
-          <div class="inv-slot" data-slot="3" title="Ô 4 (Click để bán)"><div class="inv-inner"></div></div>
-          <div class="inv-slot" data-slot="4" title="Ô 5 (Click để bán)"><div class="inv-inner"></div></div>
-          <div class="inv-slot" data-slot="5" title="Ô 6 (Click để bán)"><div class="inv-inner"></div></div>
+      <!-- ===== CỤM PHẢI: TRANG BỊ + VÀNG ===== -->
+      <div class="lol-inventory-cluster">
+        <div class="lol-items-row">
+          <div class="lol-inv-slot" data-slot="0" title="Ô 1"><div class="lol-inv-inner"></div></div>
+          <div class="lol-inv-slot" data-slot="1" title="Ô 2"><div class="lol-inv-inner"></div></div>
+          <div class="lol-inv-slot" data-slot="2" title="Ô 3"><div class="lol-inv-inner"></div></div>
+          <div class="lol-inv-slot" data-slot="3" title="Ô 4"><div class="lol-inv-inner"></div></div>
+          <div class="lol-inv-slot" data-slot="4" title="Ô 5"><div class="lol-inv-inner"></div></div>
+          <div class="lol-inv-slot" data-slot="5" title="Ô 6"><div class="lol-inv-inner"></div></div>
+          <div class="lol-trinket-slot" title="Trang bị hỗ trợ"><div class="lol-inv-inner"></div></div>
         </div>
-      </div>
 
-      <!-- ARAM Mayhem 4-Slot Augments -->
-      <div class="augments-section">
-        <div class="section-label">LÕI NÂNG CẤP (MAYHEM)</div>
-        <div class="augments-grid">
-          <div class="aug-slot" id="aug-slot-0" title="Ô Lõi 1 (Trống)"><div class="aug-inner"></div></div>
-          <div class="aug-slot" id="aug-slot-1" title="Ô Lõi 2 (Trống)"><div class="aug-inner"></div></div>
-          <div class="aug-slot" id="aug-slot-2" title="Ô Lõi 3 (Trống)"><div class="aug-inner"></div></div>
-          <div class="aug-slot" id="aug-slot-3" title="Ô Lõi 4 (Trống)"><div class="aug-inner"></div></div>
+        <div class="lol-gold-row">
+          <div class="lol-gold-badge" id="lol-gold-badge">
+            <span class="lol-gold-icon">🪙</span>
+            <span class="lol-gold-amount" id="hud-gold">500</span>
+          </div>
+          <button id="btn-open-shop" class="lol-shop-btn" title="Mở Cửa Hàng — chỉ mua được tại Bệ Đá Cổ (P)">
+            🛒 <span>CỬA HÀNG</span>
+          </button>
+          <button id="btn-open-augments" class="lol-augment-btn" title="Chọn Lõi Nâng Cấp ARAM Mayhem (N)">
+            🎲 <span>LÕI</span>
+            <b id="lol-aug-count">0/4</b>
+          </button>
         </div>
-      </div>
-
-      <!-- Gold Display, Shop & Augments Button -->
-      <div class="gold-shop-container">
-        <div class="gold-badge" title="Vàng hiện có (+3G/giây, ăn lính/hạ tướng)">
-          <span class="gold-coin">🪙</span>
-          <span class="gold-number" id="hud-gold">500</span>
-        </div>
-        <button id="btn-open-augments" class="btn-open-augments" title="Chọn Lõi Nâng Cấp ARAM Mayhem (Phím N)">
-          🎲 CHỌN LÕI (N)
-        </button>
-        <button id="btn-open-shop" class="btn-open-shop" title="Mở Cửa Hàng Trang Bị (Phím P)">
-          🛒 CỬA HÀNG (P)
-        </button>
-      </div>
-
-      <!-- Adversator Combat Stats -->
-      <div class="hero-stats-panel">
-        <div class="stat-item"><span class="stat-lbl">⚔️ C.Kích:</span> <b id="stat-ad">60</b></div>
-        <div class="stat-item"><span class="stat-lbl">🛡️ Giáp:</span> <b id="stat-armor">30</b></div>
-        <div class="stat-item"><span class="stat-lbl">🔮 K.Phép:</span> <b id="stat-mr">32</b></div>
-        <div class="stat-item"><span class="stat-lbl">⚡ Phép:</span> <b id="stat-ap">0</b></div>
-        <div class="stat-item"><span class="stat-lbl">⏱️ T.Đánh:</span> <b id="stat-as">0.697</b></div>
-        <div class="stat-item"><span class="stat-lbl">👟 Tốc độ:</span> <b id="stat-spd">345</b></div>
-        <div class="stat-item"><span class="stat-lbl">🩸 Hút máu:</span> <b id="stat-lifesteal">0%</b></div>
-        <div class="stat-item" title="Tầm đánh cơ bản chuẩn Liên Minh Huyền Thoại"><span class="stat-lbl">🎯 Tầm đánh:</span> <b id="stat-range">175 (Gần)</b></div>
       </div>
     </div>
+
+    <!-- ====================================================================
+         MINIMAP (góc dưới phải) — vẽ bằng Canvas, cập nhật mỗi frame
+         ==================================================================== -->
+    <div class="lol-minimap-wrapper">
+      <div class="lol-minimap-frame">
+        <canvas id="minimap-canvas" width="220" height="220"></canvas>
+      </div>
+      <div class="lol-minimap-legend">
+        <span class="mm-dot mm-blue"></span> Đồng Minh
+        <span class="mm-dot mm-red"></span> Địch
+      </div>
+    </div>
+
+    <!-- Bảng chỉ số chiến đấu (thu gọn, góc trái) -->
+    <div class="lol-stats-panel">
+      <div class="lol-stat"><span>⚔️</span><b id="stat-ad">60</b></div>
+      <div class="lol-stat"><span>🛡️</span><b id="stat-armor">30</b></div>
+      <div class="lol-stat"><span>🔮</span><b id="stat-mr">32</b></div>
+      <div class="lol-stat"><span>⚡</span><b id="stat-ap">0</b></div>
+      <div class="lol-stat"><span>⏱️</span><b id="stat-as">0.697</b></div>
+      <div class="lol-stat"><span>👟</span><b id="stat-spd">345</b></div>
+      <div class="lol-stat"><span>🩸</span><b id="stat-lifesteal">0%</b></div>
+      <div class="lol-stat"><span>🎯</span><b id="stat-range">175</b></div>
+    </div>
+
+    <!-- Lõi nâng cấp đang sở hữu (4 ô, góc trái trên) -->
+    <div class="lol-augments-strip">
+      <div class="lol-aug-chip" id="aug-slot-0" title="Ô Lõi 1"><div class="lol-aug-inner"></div></div>
+      <div class="lol-aug-chip" id="aug-slot-1" title="Ô Lõi 2"><div class="lol-aug-inner"></div></div>
+      <div class="lol-aug-chip" id="aug-slot-2" title="Ô Lõi 3"><div class="lol-aug-inner"></div></div>
+      <div class="lol-aug-chip" id="aug-slot-3" title="Ô Lõi 4"><div class="lol-aug-inner"></div></div>
+    </div>
+
+    <!-- Cảnh báo không thể mua đồ (hiện khi ở xa Bệ Đá Cổ) -->
+    <div id="fountain-warning" class="lol-fountain-warning hidden">
+      ⚠️ Bạn phải ở <b>Bệ Đá Cổ</b> (Căn Cứ) mới có thể mua trang bị!
+    </div>
+
 
 
     <!-- Skill Customizer Drafter Modal -->
@@ -311,6 +351,25 @@
             ĐÓNG LẠI (GIỮ LẠI LẦN CHỌN)
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- ARAM Death / Respawn Overlay: hiển thị đồng hồ hồi sinh khi tướng chết -->
+    <div id="aram-death-overlay" class="aram-death-overlay hidden">
+      <div class="aram-death-content">
+        <div class="aram-death-title">BẠN ĐÃ BỊ HẠ GỤC</div>
+        <div class="aram-death-timer" id="aram-death-timer">7</div>
+        <div class="aram-death-sub">Hồi sinh lại tại Căn Cứ Đồng Minh...</div>
+      </div>
+    </div>
+
+    <!-- ARAM Match Result Screen: Thắng / Thua khi phá Nhà Chính -->
+    <div id="aram-result-overlay" class="aram-result-overlay hidden">
+      <div class="aram-result-content">
+        <div class="aram-result-title" id="aram-result-title">CHIẾN THẮNG</div>
+        <div class="aram-result-sub" id="aram-result-sub">Bạn đã phá hủy Nhà Chính địch!</div>
+        <div class="aram-result-stats" id="aram-result-stats"></div>
+        <button id="btn-aram-restart" class="btn-aram-restart">🔄 CHƠI LẠI TRẬN MỚI</button>
       </div>
     </div>
 

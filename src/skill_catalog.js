@@ -11,7 +11,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "Q",
-      "cd": 1,
+      "cd": 0.9,
       "mana": 20,
       "range": 600,
       "desc": "Jinx chuyển hóa các đòn đánh thường bằng cách hoán đổi giữa Bằng Chíu, khẩu súng nhỏ với Xương Cá, khẩu súng phóng lựu. Các phát bắn bằng Bằng Chíu sẽ tăng Tốc độ Đánh, còn các phát bắn bằng Xương Cá sẽ gây sát thương trên diện rộng, và gia tăng tầm bắn, nhưng bù lại sẽ tiêu hao Năng Lượng cũng như tốc độ bắn giảm."
@@ -26,7 +26,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "W",
-      "cd": 8,
+      "cd": 9,
       "mana": 40,
       "range": 1450,
       "desc": "Jinx sử dụng Giật Bắn, khẩu súng phóng điện, bắn một luồng sáng làm chậm, gây sát thương và làm lộ diện kẻ địch đầu tiên trúng phải."
@@ -41,7 +41,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "E",
-      "cd": 24,
+      "cd": 27.5,
       "mana": 90,
       "range": 925,
       "desc": "Jinx ném ra một hàng lựu đạn, thứ sẽ phát nổ sau 5 giây, đốt cháy những kẻ địch. Lựu Đạn Ma Hỏa sẽ táp vào các tướng địch bước lên chúng, trói chân các nạn nhân đó."
@@ -56,7 +56,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 85,
       "mana": 100,
       "range": 25000,
       "desc": "Jinx bắn ra một quả siêu tên lửa bay toàn bản đồ, thứ vũ khí sẽ được gia tăng sát thương gây ra dựa trên khoảng cách nó đã bay. Quả tên lửa sẽ phát nổ khi va chạm với một tướng địch, gây sát thương lên nạn nhân chính cũng như các kẻ địch xung quanh đấy dựa trên số Máu chúng đã tổn thất."
@@ -116,7 +116,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 100,
       "mana": 100,
       "range": 25000,
       "desc": "Ashe bắn ra một mũi tên băng theo đường thẳng. Nếu mũi tên trúng một tướng địch, nó sẽ gây sát thương và làm choáng hắn. Thời gian làm choáng tăng theo quãng đường mũi tên bay được. Ngoài ra, kẻ địch xung quanh cũng dính sát thương và bị làm chậm."
@@ -131,7 +131,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "Q",
-      "cd": 5.5,
+      "cd": 5.8,
       "mana": 28,
       "range": 1150,
       "desc": "Ezreal bắn ra một luồng năng lượng giúp làm giảm hồi chiêu nếu trúng kẻ địch."
@@ -161,7 +161,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "E",
-      "cd": 25,
+      "cd": 26,
       "mana": 70,
       "range": 475,
       "desc": "Ezreal bay đến một chỗ gần đó và bắn ra một luồng năng lượng vào kẻ địch gần nhất. Ưu tiên kẻ địch bị trúng Tinh Hoa Tuôn Chảy."
@@ -176,7 +176,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 10,
       "mana": 100,
       "range": 25000,
       "desc": "Ezreal giương cung rồi bắn ra một làn sóng năng lượng gây sát thương cực lớn lên mọi kẻ địch nó đi qua (sát thương giảm đi với lính và quái thường)."
@@ -238,7 +238,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 120,
       "mana": 0,
       "range": 625,
       "desc": "Zed để lại một cái bóng sau lưng rồi lướt tới tướng mục tiêu, khắc dấu ấn tử thần lên nạn nhân. Sau 3 giây, dấu ấn sẽ kích nổ, gây một số phần trăm sát thương Zed đã gây ra khi dấu ấn còn trong thời gian hiệu lực. Nếu tướng địch chết dưới tác dụng của Dấu Ấn Tử Thần, Zed có thể đánh cắp một phần Sức mạnh Công kích của nạn nhân."
@@ -253,7 +253,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "Q",
-      "cd": 11,
+      "cd": 12,
       "mana": 0,
       "range": 625,
       "desc": "Katarina ném Phi Dao vào mục tiêu, nảy sang kẻ địch xung quanh trước khi cắm xuống đất."
@@ -268,7 +268,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "W",
-      "cd": 15,
+      "cd": 16,
       "mana": 0,
       "range": 25000,
       "desc": "Katarina tăng mạnh Tốc độ Di chuyển, đồng thời ném một Phi Dao lên không trung ở ngay vị trí hiện tại của mình."
@@ -298,7 +298,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 75,
       "mana": 0,
       "range": 550,
       "desc": "Katarina trở thành một cơn lốc phi dao, gây sát thương phép cực lớn trong lúc vận sức vào ba tướng địch gần nhất."
@@ -358,7 +358,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 120,
       "mana": 0,
       "range": 675,
       "desc": "Akali lướt theo hướng chỉ định, gây sát thương lên kẻ địch trúng chiêu. Tái kích hoạt: Akali lướt theo hướng chỉ định, kết liễu tất cả kẻ địch trúng chiêu."
@@ -420,7 +420,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 60,
       "mana": 100,
       "range": 3340,
       "desc": "Sau khi tích tụ năng lượng, Lux bắn một dải sáng gây sát thương lên tất cả mục tiêu trong vùng ảnh hưởng. Ngoài ra tuyệt chiêu này còn kích hoạt nội tại của Lux và đặt lại thời gian bùa hại Chớp Lửa Soi Rọi trên mục tiêu."
@@ -480,7 +480,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 140,
       "mana": 100,
       "range": 450,
       "desc": "Ahri lướt đi và bắn ra những tia sét linh hồn, gây sát thương lên kẻ địch xung quanh. Phi Hồ có thể được sử dụng tối đa ba lần trước khi hồi chiêu, và nhận được thêm một lần tái sử dụng với mỗi mạng tham gia hạ gục tướng địch."
@@ -510,7 +510,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "W",
-      "cd": 13,
+      "cd": 12,
       "mana": 60,
       "range": 925,
       "desc": "Syndra thu vào rồi quẳng đi một Quả cầu Bóng Tối, hoặc lính địch, gây sát thương phép và làm chậm Tốc độ Di chuyển của những nạn nhân trúng phải."
@@ -540,7 +540,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 120,
       "mana": 100,
       "range": 675,
       "desc": "Syndra oanh tạc một tướng địch với tất cả những Quả Cầu Bóng Tối của cô."
@@ -602,7 +602,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 130,
       "mana": 100,
       "range": 1000,
       "desc": "Malphite phi mình vào khu vực chỉ định với tốc độ cao, gây sát thương và hất tung kẻ địch lên không."
@@ -647,7 +647,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "E",
-      "cd": 7,
+      "cd": 7.5,
       "mana": 50,
       "range": 600,
       "desc": "Nautilus dậm xuống đất và tạo ra ba đợt sóng địa chấn xung quanh bản thân. Mỗi lần đều gây sát thương và làm chậm kẻ địch."
@@ -662,7 +662,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 120,
       "mana": 100,
       "range": 825,
       "desc": "Nautilus bắn ra một cơn sóng chấn động xuống mặt đất đuổi theo kẻ địch. Cơn sóng này sẽ phá nát mặt đất phía trên, hất văng kẻ địch lên trời. Khi đuổi kịp đối phương, cơn sóng bùng nổ, hất mục tiêu lên không và làm choáng chúng."
@@ -722,7 +722,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 70,
       "mana": 100,
       "range": 175,
       "desc": "Ngoạm một đơn vị địch, gây sát thương chuẩn cực lớn. Nếu mục tiêu bị hạ, Cho'Gath tăng kích thước và Máu tối đa."
@@ -754,7 +754,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "W",
-      "cd": 25,
+      "cd": 27,
       "mana": 0,
       "range": 400,
       "desc": "Tạo tường gió chặn các luồng đạn của kẻ địch trong 4 giây."
@@ -769,7 +769,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "E",
-      "cd": 1,
+      "cd": 0.5,
       "mana": 0,
       "range": 475,
       "desc": "Lướt xuyên qua mục tiêu, gây sát thương phép. Mỗi lần lướt sẽ tăng sát thương của lần lướt kế tiếp (có giới hạn tối đa). Không thể dùng lên cùng một kẻ địch trong vài giây. Nếu dùng Bão Kiếm khi đang lướt, nó sẽ tấn công theo hình tròn."
@@ -784,7 +784,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 105,
       "mana": 0,
       "range": 1400,
       "desc": "Dịch chuyển đến chỗ một tướng địch đang bị Hất Lên Không, gây sát thương vật lý và giữ tất cả những kẻ địch cùng bị Hất Lên Không ở xung quanh trên không thêm một chút. Hồi đầy thanh Nhịp nhưng xóa hết cộng dồn của Tụ Bão. Trong một khoảng thời gian sau đó, những đòn chí mạng của Yasuo sẽ nhận một lượng lớn Xuyên Giáp Cộng Thêm."
@@ -799,7 +799,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "Q",
-      "cd": 9,
+      "cd": 10,
       "mana": 25,
       "range": 1,
       "desc": "Darius múa rìu xung quanh mình. Những kẻ địch trúng phải lưỡi rìu sẽ cho nhiều sát thương hơn những kẻ bị trúng phải cán rìu. Darius sẽ hồi máu lại dựa vào số tướng và quái to bị lưỡi rìu chém phải."
@@ -829,7 +829,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "✨",
       "type": "basic",
       "key": "E",
-      "cd": 25,
+      "cd": 26,
       "mana": 70,
       "range": 535,
       "desc": "Darius cường hóa chiếc rìu của mình, khiến sát thương vật lí của hắn bỏ qua một số phần trăm Giáp của mục tiêu. Khi được kích hoạt, Darius sẽ quét kẻ địch bằng chiếc rìu của mình và kéo chúng đến cạnh bên hắn."
@@ -844,7 +844,7 @@ export const SKILL_CATALOG = {
       "iconFallback": "⚡",
       "type": "ultimate",
       "key": "R",
-      "cd": 25,
+      "cd": 120,
       "mana": 100,
       "range": 460,
       "desc": "Darius nhảy xổ vào một tướng địch rồi tấn công bằng một cú bổ chí tử, gây sát thương chuẩn. Lượng sát thương sẽ gia tăng dựa trên những điểm cộng dồn Xuất Huyết trên mục tiêu. Nếu Máy Chém Noxus là đòn kết liễu, kĩ năng này có thể được tái sử dụng trong một khoảng thời gian ngắn."

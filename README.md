@@ -53,6 +53,68 @@
 
 ---
 
+### 6. 🔥 Cơ Chế ARAM Chuẩn (tái hiện theo dữ liệu Riot CommunityDragon)
+Toàn bộ luật chơi được tách riêng trong `src/aram_rules.js` và đối chiếu với dữ liệu chính thức:
+
+| Cơ chế | Triển khai |
+| :--- | :--- |
+| **Chế độ** | ARAM: Hỗn Loạn — Queue **#2400** (lấy từ `queues.json`) |
+| **Bản đồ** | map **12** — The Howling Abyss (`maps.json`) |
+| **Chọn tướng** | Random như ARAM thật + **2 lượt reroll** + **ô Bench** để đổi lại miễn phí |
+| **Hồi sinh** | Công thức theo cấp: cấp 1 ≈ 7s → cấp 11 ≈ 15.4s → cấp 18 ≈ 21.3s, cộng dần theo thời gian trận |
+| **Điều kiện thắng** | Phá hủy **Nhà Chính địch** (màn hình CHIẾN THẮNG) |
+| **Điều kiện thua** | Nhà Chính Đồng Minh bị phá (màn hình THẤT BẠI) |
+| **HUD trận đấu** | Đồng hồ MM:SS, chỉ số Hạ gục/Chết, màn hình đếm ngược hồi sinh |
+| **Bệ Đá Cổ** | Chỉ mua/bán trang bị khi đứng trong vùng căn cứ quanh Nhà Chính (như LMHT thật) |
+| **Tốc độ** | Quy đổi chuẩn LMHT: tướng Yasuo 345 MS → 8.90 units/s, lính 350 MS → 9.03 units/s |
+| **Nhịp lính** | Đợt lính mỗi **25 giây** (ARAM chuẩn), lính đầu sau 30 giây |
+| **Lính công thành** | Xuất hiện mỗi đợt thứ 3 (880 HP, tầm 300, AS 1.0) — đúng dữ liệu CommunityDragon |
+| **Lên cấp** | XP chia toàn đội (5.5 XP/s thụ động + 12 XP/lính + 120 XP/hạ gục), tự lên cấp tới 18 |
+| **Nhà Lính** | Hồi sinh sau **60 giây** sau khi bị phá |
+| **Vàng khởi đầu** | **1400 vàng** (đúng chuẩn ARAM, đủ trang bị khởi đầu + giày) |
+| **Tầm đánh** | Đo **mép-tới-mép** như LMHT thật (cộng bán kính tướng/trụ/lính), khoảng cách mặt phẳng |
+| **Tướng** | **14 tướng** đủ model 3D + bộ kỹ năng Q/W/E/R riêng |
+| **Hoạt ảnh chiêu** | Dùng clip `Spell1→Spell4` có sẵn trong model (Q/W/E/R) |
+| **Bệ Đá Cổ** | Mô hình 3D đầy đủ: bậc đá, vòng năng lượng xoay, pha lê phát sáng, hào quang |
+| **Vật liệu** | Chuyển `KHR_materials_unlit` → `MeshStandardMaterial` để có khối và đổ bóng |
+| **Tối ưu tải** | Chỉ tải tướng đang chơi (không tải cả 14); model nền tải 2 tầng |
+
+### 8. 🎭 Danh Sách 14 Tướng (model .glb từ modelviewer.lol)
+
+| Tướng | Tầm đánh | Tốc chạy | Nguồn model |
+|---|---|---|---|
+| Yasuo | 175 | 345 | modelviewer.lol |
+| Jinx | 525 | 325 | modelviewer.lol |
+| Zed | 125 | 345 | modelviewer.lol |
+| Ashe | 600 | 325 | modelviewer.lol |
+| Darius | 175 | 340 | modelviewer.lol |
+| Ahri | 550 | 330 | modelviewer.lol |
+| Ezreal | 550 | 325 | modelviewer.lol |
+| Lux | 550 | 330 | modelviewer.lol |
+| Malphite | 125 | 335 | modelviewer.lol |
+| Nautilus | 175 | 325 | modelviewer.lol |
+| Cho'Gath | 125 | 345 | modelviewer.lol |
+| Katarina | 125 | 335 | modelviewer.lol |
+| Akali | 125 | 345 | modelviewer.lol |
+| Syndra | 550 | 330 | modelviewer.lol |
+
+Chỉ số lấy từ **Data Dragon 14.5.1**, model 3D từ **modelviewer.lol**,
+bộ kỹ năng Q/W/E/R từ **CommunityDragon**.
+
+### 7. 🎨 HUD Chuẩn Liên Minh + Minimap
+Giao diện được dựng lại theo đúng bố cục Liên Minh Huyền Thoại:
+
+- **Thanh điểm số trên cùng**: Đồng Minh | Đồng hồ trận + chế độ | Kẻ Thù
+- **Cụm trái**: Chân dung tướng tròn viền vàng + cấp độ + thanh HP/MP
+- **Cụm giữa**: 6 ô kỹ năng (Nội tại, Q, W, E, R, D) + thanh kinh nghiệm
+- **Cụm phải**: 6 ô trang bị + ô trang bị hỗ trợ + vàng + nút Cửa Hàng/Lõi
+- **Minimap góc dưới phải**: vẽ bằng Canvas mỗi frame, hiển thị đường làn, Trụ/Nhà Lính/Nhà Chính 2 phe (mờ khi bị phá), lính, Bot địch, và mũi tên vàng chỉ hướng tướng người chơi
+- Bảng màu chuẩn Hextech: vàng `#c8aa6e`, nền `#010a13`, viền `#1e2328`
+
+> Ghi chú kỹ thuật: các hằng số Riot không công bố qua API (thời gian hồi sinh, tốc độ vàng) được tính theo công thức tiêu chuẩn của chế độ và có ghi chú nguồn gốc ngay trong code.
+
+---
+
 ## ⌨️ Phím Tắt & Thao Tác Điều Khiển
 
 | Phím / Thao Tác | Chức Năng |
@@ -113,12 +175,14 @@ AramHonLoan/
 │   ├── images/                # Icon tướng, trang bị, kỹ năng, lõi nâng cấp
 │   └── models/                # Mô hình 3D .glb (tướng, trụ, lính, nhà chính, poro)
 ├── src/
+│   ├── aram_rules.js          # Luật chơi ARAM (hồi sinh, chọn tướng, thắng/thua)
 │   ├── augments.js            # Dữ liệu & logic Lõi Nâng Cấp ARAM Mayhem
 │   ├── champion.js            # Lớp PlayerChampion, EnemyBot, Structure, Minion
 │   ├── champion_data.js       # Engine tính chỉ số Riot Data Dragon 14.5.1
 │   ├── items.js               # Danh mục trang bị & chỉ số cửa hàng
 │   ├── main.js                # Game loop, điều khiển camera, renderer Three.js, HUD
 │   ├── map.js                 # Dựng bản đồ Vực Gió Hú, tượng cổ, đèn bão tuyết
+│   ├── minimap.js             # Minimap Canvas + kiểm tra vùng Bệ Đá Cổ
 │   ├── model_cache.js         # Bộ nhớ đệm RAM Buffer nạp nhanh mô hình 3D
 │   ├── skill_catalog.js       # Thư viện toàn bộ chiêu thức LMHT (Q, W, E, R)
 │   ├── skills.js              # Hệ thống tính toán sát thương & hiệu ứng chiêu

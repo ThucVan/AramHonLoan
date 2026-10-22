@@ -11,6 +11,7 @@ import {
   LOL_RANGE_SCALE,
   BUNDLED_CHAMPION_STATS_14_5_1
 } from './champion_data.js';
+import { getRespawnSeconds, getLevelFromXp, ARAM_ECONOMY, LEVEL_XP_THRESHOLDS } from './aram_rules.js';
 
 export { LOL_RANGE_SCALE, getChampion1451Data, loadDataDragonChampions, calculateStatsAtLevel };
 
@@ -36,6 +37,65 @@ export function setupLoaders(renderer) {
       console.warn('KTX2Loader setup warning:', e);
     }
   }
+}
+
+// ============================================================================
+// CHUYỂN MATERIAL UNLIT -> CÓ ÁNH SÁNG
+// ----------------------------------------------------------------------------
+// Model GLB của Riot dùng extension KHR_materials_unlit: bề mặt không phản ứng
+// với ánh sáng nên trông BẸT, thiếu khối, không giống cảm giác 3D trong game.
+// Hàm này dựng lại material dựa trên chính texture gốc (giữ nguyên màu sắc,
+// chỉ thêm phản xạ ánh sáng) để nhân vật có khối và đổ bóng như game thật.
+// ============================================================================
+function applyLitMaterials(child) {
+  const mats = Array.isArray(child.material) ? child.material : [child.material];
+  const out = mats.map((mat) => {
+    if (!mat) return mat;
+    // Chỉ chuyển những material thật sự unlit (MeshBasicMaterial) hoặc được
+    // đánh dấu qua extension; material đã chuẩn thì giữ nguyên.
+    const isUnlit = mat.isMeshBasicMaterial ||
+      (mat.userData && mat.userData.gltfExtensions &&
+        mat.userData.gltfExtensions.KHR_materials_unlit);
+
+    if (!isUnlit) {
+      // Material chuẩn: tinh chỉnh nhẹ cho phù hợp ánh sáng của scene
+      if (mat.isMeshStandardMaterial) {
+        mat.roughness = Math.max(0.45, mat.roughness ?? 0.5);
+        mat.metalness = Math.min(0.25, mat.metalness ?? 0.1);
+        mat.envMapIntensity = 1.0;
+      }
+      return mat;
+    }
+
+    const lit = new THREE.MeshStandardMaterial({
+      name: mat.name,
+      color: mat.color ? mat.color.clone() : new THREE.Color(0xffffff),
+      map: mat.map || null,
+      alphaMap: mat.alphaMap || null,
+      transparent: mat.transparent,
+      opacity: mat.opacity,
+      side: mat.side,
+      // LƯU Ý: KHÔNG truyền 'skinning' — Three.js r150+ đã bỏ thuộc tính này
+      // (skinning tự động bật khi material dùng cho SkinnedMesh). Truyền vào
+      // sẽ sinh cảnh báo và có thể làm material không được tạo đúng.
+      roughness: 0.55,
+      metalness: 0.08,
+      emissive: new THREE.Color(0x000000),
+      envMapIntensity: 1.0
+    });
+
+    // Giữ lại cờ gốc để không phá vỡ skinning/vertex color
+    if (mat.vertexColors) lit.vertexColors = true;
+    if (mat.map) {
+      lit.map.colorSpace = THREE.SRGBColorSpace;
+      lit.map.needsUpdate = true;
+    }
+    if (mat.alphaMap) lit.alphaMap.needsUpdate = true;
+    return lit;
+  });
+
+  child.material = Array.isArray(child.material) ? out : out[0];
+  return child.material;
 }
 
 // ============================================================================
@@ -81,7 +141,8 @@ export const CHAMPION_ATTACK_PROFILES = {
     range: +(600 * LOL_RANGE_SCALE).toFixed(2), // ~15.48
     type: 'ranged',
     attackCooldownMax: +(1.0 / 0.658).toFixed(2), // ~1.52s (0.658 AS)
-    projectileSpeed: 30.0,
+    // Tốc đạn đánh thường chuẩn LoL (~1600 đơn vị LoL/s = 41.3 units/s)
+    projectileSpeed: +(1600 * LOL_RANGE_SCALE).toFixed(2),
     projectileColor: 0x67e8f9,
     desc: 'Xạ thủ tầm xa (600 tầm đánh LMHT)'
   },
@@ -92,7 +153,8 @@ export const CHAMPION_ATTACK_PROFILES = {
     range: +(525 * LOL_RANGE_SCALE).toFixed(2), // ~13.55
     type: 'ranged',
     attackCooldownMax: +(1.0 / 0.625).toFixed(2), // 1.60s (0.625 AS)
-    projectileSpeed: 32.0,
+    // Tốc đạn đánh thường chuẩn LoL (~1600 đơn vị LoL/s = 41.3 units/s)
+    projectileSpeed: +(1600 * LOL_RANGE_SCALE).toFixed(2),
     projectileColor: 0xf472b6,
     desc: 'Xạ thủ tầm xa (525 tầm đánh LMHT)'
   },
@@ -123,7 +185,8 @@ export const CHAMPION_ATTACK_PROFILES = {
     range: +(550 * LOL_RANGE_SCALE).toFixed(2), // ~14.19
     type: 'ranged',
     attackCooldownMax: +(1.0 / 0.668).toFixed(2), // ~1.50s (0.668 AS)
-    projectileSpeed: 30.0,
+    // Tốc đạn đánh thường chuẩn LoL (~1600 đơn vị LoL/s = 41.3 units/s)
+    projectileSpeed: +(1600 * LOL_RANGE_SCALE).toFixed(2),
     projectileColor: 0x38bdf8,
     desc: 'Pháp sư tầm xa (550 tầm đánh LMHT)'
   }
@@ -199,32 +262,61 @@ export class Minion {
     this.attackCooldown = 0;
     this.target = null;
 
+    // -----------------------------------------------------------------
+    // SỐ LIỆU LÍNH ARAM — trích trực tiếp từ CommunityDragon:
+    //   data/characters/ha_orderminion{melee,ranged,siege,super}/*.bin.json
+    // Các giá trị dưới đây là baseValue/mBaseValue NGUYÊN BẢN của Riot,
+    // KHÔNG phải số ước lượng.
+    // -----------------------------------------------------------------
     if (type === 'melee') {
-      this.maxHp = 475;
-      this.hp = 475;
-      this.armor = 18;
-      this.damage = 24;
-      this.rangeLol = 110; // Tầm đánh cận chiến LMHT (110)
-      this.range = +(110 * LOL_RANGE_SCALE).toFixed(2); // ~2.84
-      this.speed = 7.0;
+      // HA_OrderMinionMelee: baseHP=455, baseDamage=12, baseArmor=0
+      this.maxHp = 455;
+      this.hp = 455;
+      this.armor = 0;
+      this.damage = 12;
+      this.rangeLol = 110;
+      this.range = +(110 * LOL_RANGE_SCALE).toFixed(2);
+      // baseMoveSpeedModifiable = 325 (KHÔNG phải 350)
+      this.speed = +(325 * LOL_RANGE_SCALE).toFixed(3);
+      // attackSpeedModifiable = 1.25 -> chu kỳ = 1 / 1.25 = 0.8s
+      this.attackCooldownMax = +(1 / 1.25).toFixed(2);
       this.mesh = this.createMeleeMesh(isAllied);
     } else if (type === 'caster') {
+      // HA_OrderMinionRanged: baseHP=290, baseDamage=23, baseArmor=0
       this.maxHp = 290;
       this.hp = 290;
-      this.armor = 6;
-      this.damage = 36;
-      this.rangeLol = 550; // Tầm đánh xạ thủ/phép thuật LMHT (550)
-      this.range = +(550 * LOL_RANGE_SCALE).toFixed(2); // ~14.19
-      this.speed = 7.0;
+      this.armor = 0;
+      this.damage = 23;
+      this.rangeLol = 550;
+      this.range = +(550 * LOL_RANGE_SCALE).toFixed(2);
+      this.speed = +(325 * LOL_RANGE_SCALE).toFixed(3);
+      // attackSpeedModifiable = 0.667 -> chu kỳ = 1.5s
+      this.attackCooldownMax = +(1 / 0.667).toFixed(2);
+      this.mesh = this.createCasterMesh(isAllied);
+    } else if (type === 'siege') {
+      // HA_OrderMinionSiege: baseHP=805, baseDamage=40, baseArmor=0
+      // baseMoveSpeed=325, attackRange=300, attackSpeed=1.0
+      this.maxHp = 805;
+      this.hp = 805;
+      this.armor = 0;
+      this.damage = 40;
+      this.rangeLol = 300;
+      this.range = +(300 * LOL_RANGE_SCALE).toFixed(2);
+      this.speed = +(325 * LOL_RANGE_SCALE).toFixed(3);
+      this.attackCooldownMax = +(1 / 1.0).toFixed(2);
       this.mesh = this.createCasterMesh(isAllied);
     } else { // 'super'
+      // HA_OrderMinionSuper: baseHP=1500, baseDamage=306, baseArmor=60
+      // baseMoveSpeed=325 (KHÔNG phải 380), attackRange=170
       this.maxHp = 1500;
       this.hp = 1500;
-      this.armor = 40;
-      this.damage = 85;
-      this.rangeLol = 170; // Tầm đánh lính siêu cấp LMHT (170)
-      this.range = +(170 * LOL_RANGE_SCALE).toFixed(2); // ~4.39
-      this.speed = 6.0;
+      this.armor = 60;
+      this.damage = 306;
+      this.rangeLol = 170;
+      this.range = +(170 * LOL_RANGE_SCALE).toFixed(2);
+      this.speed = +(325 * LOL_RANGE_SCALE).toFixed(3);
+      // attackSpeedModifiable = 0.694 -> chu kỳ = 1.44s
+      this.attackCooldownMax = +(1 / 0.694).toFixed(2);
       this.mesh = this.createSuperMesh(isAllied);
     }
 
@@ -248,6 +340,7 @@ export class Minion {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        applyLitMaterials(child);
       }
     });
     group.add(model);
@@ -381,9 +474,11 @@ export class Minion {
       } else {
         // In range: ATTACK!
         if (this.attackCooldown <= 0) {
-          this.attackCooldown = 1.1;
+          // Chu kỳ đánh riêng theo loại lính (đúng attack speed của LoL)
+          this.attackCooldown = this.attackCooldownMax || 1.1;
 
-          if (this.type === 'caster') {
+          // Lính phép và lính công thành đều bắn đạn (tầm đánh xa)
+          if (this.type === 'caster' || this.type === 'siege') {
             this.launchCasterBolt(targetPos, this.target, projectileList, vfx, sounds);
           } else {
             this.target.takeDamage(this.damage, vfx);
@@ -557,6 +652,7 @@ export class Structure {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
+          applyLitMaterials(child);
           if (Array.isArray(child.material)) {
             child.material.forEach((mat) => {
               if (mat.name !== 'Base') mat.visible = false;
@@ -726,9 +822,45 @@ export class Structure {
       this.group.visible = false;
     }
 
-    // If inhibitor, respawn in 60s
+    // Nhà Lính sẽ hồi lại sau 60 giây (luật ARAM/LMHT chuẩn)
     if (this.type === 'inhibitor') {
       this.respawnTimer = 60.0;
+    }
+  }
+
+  // -------------------------------------------------------------------
+  // ĐẾM NGƯỢC VÀ HỒI SINH NHÀ LÍNH
+  // Gọi mỗi frame. Nhà Lính sống lại sau 60s, cho phép địch tiếp tục
+  // đẩy lính thường thay vì lính siêu cấp vĩnh viễn.
+  // -------------------------------------------------------------------
+  tickRespawn(delta) {
+    if (!this.isDestroyed || this.type !== 'inhibitor') return;
+    if (this.respawnTimer <= 0) return;
+
+    this.respawnTimer -= delta;
+    if (this.respawnTimer > 0) return;
+
+    // Hồi sinh Nhà Lính
+    this.respawnTimer = 0;
+    this.isDestroyed = false;
+    this.hp = this.maxHp;
+    this.group.visible = true;
+    this.healthBar.sprite.visible = true;
+    this.healthBar.updateBar(this.hp, this.maxHp);
+
+    // Dọn sạch group trước khi dựng lại, tránh nhân đôi geometry
+    const keep = this.healthBar ? this.healthBar.sprite : null;
+    this.group.clear();
+    if (keep) this.group.add(keep);
+
+    // Dựng lại mô hình Nhà Lính
+    this.fallbackPad = null;
+    this.crystal = null;
+    this.buildInhibitorMesh(this.isAllied);
+
+    if (this.healthBar) {
+      this.healthBar.sprite.visible = true;
+      this.healthBar.updateBar(this.hp, this.maxHp);
     }
   }
 
@@ -836,10 +968,16 @@ export class PlayerChampion {
     this.level = 1;
 
     // Base stats & Item inventory
-    this.gold = 500;
+    this.gold = ARAM_ECONOMY.startingGold;
     this.inventory = [];
     this.augments = [];
     this.rerollsLeft = 2;
+
+    // ------------------------------------------------------------------
+    // KINH NGHIỆM (XP) — ARAM chia XP cho cả đội, tự động lên cấp tới 18.
+    // ------------------------------------------------------------------
+    this.xp = 0;
+    this.xpToNext = 280; // ngưỡng lên cấp 2 (bảng XP chuẩn LoL)
 
     this.baseAp = 0;
     this.baseLifesteal = 0.0;
@@ -863,10 +1001,14 @@ export class PlayerChampion {
     );
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.04;
+    // Đánh dấu để purgeModelObjects() biết đây là HẠ TẦNG, không phải model
+    ring.userData.isInfrastructure = true;
+    this.selectionRing = ring;
     this.mesh.add(ring);
 
     // Health & Mana Bar
     this.healthBar = createHealthBar('#22c55e', 2.2, 0.28, 3.2);
+    this.healthBar.sprite.userData.isInfrastructure = true;
     this.mesh.add(this.healthBar.sprite);
 
     // Animation System
@@ -902,6 +1044,8 @@ export class PlayerChampion {
     this.rangeRing.rotation.x = -Math.PI / 2;
     this.rangeRing.position.y = 0.05;
     this.rangeRing.visible = true; // Luôn hiển thị rõ tầm đánh như LMHT
+    // Hạ tầng: KHÔNG được xoá khi đổi tướng
+    this.rangeRing.userData.isInfrastructure = true;
     this.mesh.add(this.rangeRing);
   }
 
@@ -983,6 +1127,33 @@ export class PlayerChampion {
     }
   }
 
+  // -------------------------------------------------------------------
+  // CỘNG KINH NGHIỆM VÀ TỰ ĐỘNG LÊN CẤP (chuẩn ARAM)
+  // ARAM chia XP cho toàn đội nên người chơi lên cấp rất nhanh dù không
+  // last-hit. Cấp tối đa là 18.
+  // -------------------------------------------------------------------
+  gainXp(amount) {
+    if (this.isDead || amount <= 0) return;
+    this.xp += amount;
+
+    // Lên cấp liên tục nếu đủ ngưỡng (có thể nhảy nhiều cấp một lúc)
+    let leveled = false;
+    while (this.level < 18 && this.xp >= LEVEL_XP_THRESHOLDS[this.level]) {
+      this.level++;
+      leveled = true;
+    }
+
+    this.xpToNext = this.level >= 18 ? 0 : LEVEL_XP_THRESHOLDS[this.level];
+
+    if (leveled) {
+      // Giữ nguyên % máu/mana hiện tại, tính lại toàn bộ chỉ số theo cấp mới
+      this.setLevel(this.level);
+      if (typeof this.vfx?.spawnLevelUp === 'function') {
+        this.vfx.spawnLevelUp(this.mesh.position);
+      }
+    }
+  }
+
   // Tăng/Đổi cấp độ và tự động tính toán lại chỉ số theo hệ số tăng trưởng LMHT 14.5.1
   setLevel(lvl) {
     this.level = Math.max(1, Math.min(18, lvl));
@@ -1024,16 +1195,32 @@ export class PlayerChampion {
     toTarget.y = 0;
     const dist = toTarget.length();
 
-    // Kiểm tra cự ly có nằm trong tầm đánh hay không
-    if (dist > this.range + 0.35) {
+    // -------------------------------------------------------------------
+    // KIỂM TRA TẦM ĐÁNH (chuẩn LMHT: đo từ MÉP đến MÉP)
+    // Game đo tâm-đến-tâm, nên phải cộng bán kính của cả hai bên, nếu không
+    // tướng sẽ phải đứng sát hơn nhiều so với LMHT thật.
+    //   - bán kính tướng  ~0.9 units
+    //   - bán kính trụ    ~2.4 units (chân trụ lớn)
+    //   - bán kính lính   ~0.6 units
+    // -------------------------------------------------------------------
+    const selfRadius = 0.9;
+    let targetRadius = 0.6;
+    if (target && (target.type || '').includes('turret')) targetRadius = 2.4;
+    else if (target && target.type === 'nexus') targetRadius = 3.2;
+    else if (target && target.type === 'inhibitor') targetRadius = 2.0;
+    else if (target && target.mesh && target.mesh.userData && target.mesh.userData.isChampion) targetRadius = 0.9;
+
+    if (dist > this.range + selfRadius + targetRadius) {
       return false;
     }
 
     // Đã đủ tầm đánh: Thực hiện đòn đánh!
     this.attackCooldown = this.attackCooldownMax;
 
-    // Quay mặt nhìn về phía mục tiêu
-    this.mesh.rotation.y = Math.atan2(toTarget.x, toTarget.z) + Math.PI;
+    // Quay mặt nhìn về phía mục tiêu.
+    // Model GLB của tướng hướng mặt theo trục +Z, nên atan2(x,z) là ĐÚNG.
+    // Trước đây cộng thêm Math.PI khiến tướng quay lưng lại khi đánh.
+    this.mesh.rotation.y = Math.atan2(toTarget.x, toTarget.z);
 
     // Chạy hoạt ảnh vung đòn đánh thường
     this.playAttackAnimation();
@@ -1043,6 +1230,29 @@ export class PlayerChampion {
     const hasIE = this.inventory && this.inventory.some(it => it.id === 'infinity_edge');
     const critMult = isCrit ? (hasIE ? 2.15 : 1.75) : 1.0;
     const rawDamage = Math.round(this.ad * critMult);
+
+    // -------------------------------------------------------------------
+    // ASHE Q (Chú Tâm Tiễn): khi đang bật, đòn đánh thường bắn loạt 5 mũi
+    // tên băng thay vì 1. Đây là cơ chế SELF-buff thật của LMHT.
+    // -------------------------------------------------------------------
+    if (this.heroType === 'ashe' && this.asheQActive && this.asheQStacks > 0 && this.attackType === 'ranged') {
+      this.asheQStacks--;
+      if (this.asheQStacks <= 0) this.asheQActive = false;
+      // Bắn 5 mũi tên tản nhẹ, mỗi mũi 35% damage để tổng không vượt cân bằng
+      for (let k = -2; k <= 2; k++) {
+        setTimeout(() => {
+          if (!target || target.isDead) return;
+          const spread = k * 0.06;
+          const dirV = new THREE.Vector3().subVectors(targetPos, this.mesh.position);
+          dirV.y = 0;
+          dirV.applyAxisAngle(new THREE.Vector3(0, 1, 0), spread);
+          const p = this.mesh.position.clone().addScaledVector(dirV.normalize(), 0.8);
+          this.fireBasicProjectile(p.clone().add(dirV.clone().multiplyScalar(6)), target, projectileList, vfx, sounds, Math.round(rawDamage * 0.35), isCrit);
+        }, (k + 2) * 40);
+      }
+      if (vfx) vfx.spawnIceExplosion(this.mesh.position, 0x67e8f9, 8);
+      return true;
+    }
 
     if (this.attackType === 'ranged') {
       // Xạ thủ tầm xa (Ashe, Jinx): Phóng đường đạn bay thẳng đến đối phương
@@ -1118,50 +1328,91 @@ export class PlayerChampion {
     return group;
   }
 
+  // -------------------------------------------------------------------
+  // DỌN SẠCH MỌI MODEL CŨ TRƯỚC KHI GẮN MODEL MỚI
+  // -------------------------------------------------------------------
+  // Trước đây chỉ remove modelRoot + fallbackModel, nên khi đổi tướng
+  // nhiều lần các Group/Mesh cũ (model dự phòng, model load dở, mesh
+  // placeholder) vẫn nằm lại trong player.mesh và CHỒNG LÊN NHAU ->
+  // hiện tượng "model lỗi đè loạn lên nhau".
+  // Cách xử lý đúng: giữ lại đúng những object HẠ TẦNG (thanh máu,
+  // vòng chọn, sprite) và xoá toàn bộ phần model 3D còn sót.
+  // -------------------------------------------------------------------
+  purgeModelObjects() {
+    if (!this.mesh) return;
+
+    // Xoá mọi object KHÔNG được đánh dấu là hạ tầng.
+    // Hạ tầng (vòng chọn, thanh máu) có userData.isInfrastructure = true.
+    const toRemove = [];
+    for (const child of this.mesh.children) {
+      if (child.userData && child.userData.isInfrastructure) continue;
+      if (this.modelRoot && child === this.modelRoot) { toRemove.push(child); continue; }
+      if (this.fallbackModel && child === this.fallbackModel) { toRemove.push(child); continue; }
+      // Group = model GLB; Mesh rời (không phải Sprite) = model dự phòng
+      if (child.isGroup || (child.isMesh && !child.isSprite)) {
+        toRemove.push(child);
+      }
+    }
+    for (const obj of toRemove) {
+      this.mesh.remove(obj);
+      // Giải phóng geometry để tránh rò rỉ GPU khi đổi tướng nhiều lần
+      obj.traverse((o) => {
+        if (o.geometry && o.geometry.dispose) o.geometry.dispose();
+      });
+    }
+
+    this.modelRoot = null;
+    this.fallbackModel = null;
+    this.mixer = null;
+    this.actions = {};
+    this.currentAction = null;
+  }
+
   switchModel(modelType) {
     // Cập nhật profile và tầm tấn công chuẩn LMHT cho tướng mới
     this.setHeroProfile(modelType);
 
-    if (this.modelRoot) {
-      this.mesh.remove(this.modelRoot);
-      this.modelRoot = null;
-    }
-    this.mixer = null;
-    this.actions = {};
-    this.currentAction = null;
+    // Dọn TOÀN BỘ model cũ (không chỉ modelRoot/fallbackModel)
+    this.purgeModelObjects();
 
-    if (modelType === 'yasuo') {
+    // -------------------------------------------------------------------
+    // BẢNG TRA CỨU MODEL — dùng map thay vì chuỗi if/else.
+    // Trước đây chỉ 6 tướng đầu có nhánh, thêm tướng mới vào pool mà quên
+    // thêm vào đây thì tướng đó biến mất khỏi màn hình (không load model).
+    // Tỉ lệ scale chọn theo chiều cao thực tế của từng model GLB.
+    // -------------------------------------------------------------------
+    const MODEL_MAP = {
+      yasuo: ['/models/yasuo.glb', 1.05],
+      jinx: ['/models/jinx.glb', 1.15],
+      zed: ['/models/zed.glb', 1.15],
+      ashe: ['/models/ashe.glb', 1.25],
+      darius: ['/models/darius.glb', 0.95],
+      ahri: ['/models/ahri.glb', 1.2],
+      ezreal: ['/models/ezreal.glb', 1.05],
+      lux: ['/models/lux.glb', 1.1],
+      malphite: ['/models/malphite.glb', 0.9],
+      nautilus: ['/models/nautilus.glb', 0.85],
+      chogath: ['/models/chogath.glb', 0.8],
+      katarina: ['/models/katarina.glb', 1.1],
+      akali: ['/models/akali.glb', 1.05],
+      syndra: ['/models/syndra.glb', 1.1],
+      soldier: ['/models/soldier.glb', 1.4],
+      robot: ['/models/robot.glb', 1.1]
+    };
+
+    const entry = MODEL_MAP[modelType];
+    if (entry) {
+      this.loadModel(entry[0], entry[1]);
+    } else {
+      // Tướng không có model riêng: dùng model dự phòng để không bị vô hình
+      console.warn('[switchModel] Không có model cho:', modelType);
       this.loadModel('/models/yasuo.glb', 1.05);
-    } else if (modelType === 'jinx') {
-      this.loadModel('/models/jinx.glb', 1.15);
-    } else if (modelType === 'zed') {
-      this.loadModel('/models/zed.glb', 1.15);
-    } else if (modelType === 'ashe') {
-      this.loadModel('/models/ashe.glb', 1.25);
-    } else if (modelType === 'darius') {
-      this.loadModel('/models/darius.glb', 0.95);
-    } else if (modelType === 'ahri') {
-      this.loadModel('/models/ahri.glb', 1.2);
-    } else if (modelType === 'soldier') {
-      this.loadModel('/models/soldier.glb', 1.4);
-    } else if (modelType === 'robot') {
-      this.loadModel('/models/robot.glb', 1.1);
     }
   }
 
   loadCustomModel(gltf) {
-    if (this.modelRoot) {
-      this.mesh.remove(this.modelRoot);
-      this.modelRoot = null;
-    }
-    this.mixer = null;
-    this.actions = {};
-    this.currentAction = null;
-
-    if (this.fallbackModel) {
-      this.mesh.remove(this.fallbackModel);
-      this.fallbackModel = null;
-    }
+    // Dọn sạch model cũ trước (tránh chồng chất khi nạp nhiều lần)
+    this.purgeModelObjects();
 
     this.modelRoot = gltf.scene;
 
@@ -1175,6 +1426,7 @@ export class PlayerChampion {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
+        applyLitMaterials(child);
       }
     });
 
@@ -1186,27 +1438,133 @@ export class PlayerChampion {
     if (!animations || animations.length === 0) return;
     this.mixer = new THREE.AnimationMixer(this.modelRoot);
 
-    // Dynamic resolution of League animation clips
-    const idleClip = animations.find(a => {
-      const n = a.name.toLowerCase();
-      return (n.includes('idle') || n.includes('survey')) && !n.includes('in') && !n.includes('out') && !n.includes('lead');
-    }) || animations.find(a => a.name.toLowerCase().includes('idle')) || animations[0];
+    // -------------------------------------------------------------------
+    // CHỌN CLIP idle / run / attack BẰNG CHẤM ĐIỂM
+    // -------------------------------------------------------------------
+    // Bản cũ dùng .find() + điều kiện !n.includes('in') nên đã chọn nhầm
+    // "Spell1_ToIdle"/"Idle_In" — là clip CHUYỂN CẢNH, không phải tư thế
+    // đứng yên. Hậu quả: tướng đứng sai tư thế và luôn ở frame cuối.
+    // -------------------------------------------------------------------
+    const selectClip = (pattern, opts = {}) => {
+      let best = null, bestScore = -Infinity;
+      for (const a of animations) {
+        const n = (a.name || '').toLowerCase();
+        if (!pattern.test(n)) continue;
+        // Loại clip chuyển cảnh / cảm xúc / chết
+        if (/_to_|_to-|_torun|_toidle|_from_|from_|_to_/.test(n)) continue;
+        if (/recall|dance|joke|taunt|laugh|death|victory/.test(n)) continue;
+        if (opts.exclude && opts.exclude.test(n)) continue;
 
-    const runClip = animations.find(a => {
-      const n = a.name.toLowerCase();
-      return (n.includes('run') || n.includes('walk')) && !n.includes('in') && !n.includes('out') && !n.includes('haste') && !n.includes('lead');
-    }) || animations.find(a => a.name.toLowerCase().includes('run')) || animations[1] || animations[0];
+        let score = 0;
+        if (opts.exact && opts.exact.test(n)) score += 100;
+        if (/_(in|out)$/.test(n)) score -= 40;          // clip vào/ra
+        if (/variant|alt|_var\d/.test(n)) score -= 10;   // biến thể
+        if (/_(-?\d+)$/.test(n)) score -= 20;           // biến thể góc
+        score += Math.min(6, (a.duration || 0) * 1.5);    // ưu tiên clip đầy đủ
+        if (score > bestScore) { bestScore = score; best = a; }
+      }
+      return best;
+    };
 
-    const attackClip = animations.find(a => a.name.toLowerCase().includes('attack1')) || animations.find(a => a.name.toLowerCase().includes('attack')) || animations.find(a => a.name.toLowerCase().includes('spell1'));
+    const idleClip = selectClip(/idle|survey/, { exact: /^idle\d*$|^idle$/ })
+      || animations[0];
+
+    const runClip = selectClip(/run|walk/, { exact: /^run\d*$|^run$/ })
+      || animations[1] || animations[0];
+
+    const attackClip = selectClip(/attack|crit/, { exact: /^attack1?$/ })
+      || selectClip(/attack|crit/);
 
     if (idleClip) this.actions.idle = this.mixer.clipAction(idleClip);
     if (runClip) this.actions.run = this.mixer.clipAction(runClip);
     if (attackClip) this.actions.attack = this.mixer.clipAction(attackClip);
 
+    // ------------------------------------------------------------------
+    // ANIMATION CHIÊU THỨC (Spell1..Spell4 = Q/W/E/R)
+    // Model Riot có sẵn các clip này nhưng trước đây game chỉ load
+    // idle/run/attack nên tung chiêu không có hoạt ảnh -> trông không giống.
+    // ------------------------------------------------------------------
+    const spellSlots = ['Q', 'W', 'E', 'R'];
+    spellSlots.forEach((slot, idx) => {
+      const spellNum = idx + 1;
+
+      // Chấm điểm từng clip ứng viên rồi chọn clip TỐT NHẤT.
+      // Lý do: mỗi model Riot đặt tên khác nhau — có tướng là "Spell3",
+      // có tướng chỉ có biến thể hướng như "Spell3_east"/"Spell3_North",
+      // nên không thể chỉ dùng .find() lấy cái đầu tiên.
+      let best = null;
+      let bestScore = -Infinity;
+
+      for (const a of animations) {
+        const n = (a.name || '').toLowerCase();
+        if (!n.includes(`spell${spellNum}`)) continue;
+
+        let score = 0;
+
+        // Loại hẳn clip chuyển cảnh / không phải động tác tung chiêu
+        if (/_to_|_to-|_torun|_toidle|_from_/.test(n)) continue;
+        if (/windup|channel/.test(n)) continue;
+        if (/recall|dance|joke|taunt|laugh|death/.test(n)) continue;
+
+        // Ưu tiên tên khớp CHÍNH XÁC (vd "spell3") — điểm cao nhất
+        if (new RegExp(`^spell${spellNum}$`).test(n)) score += 100;
+        else if (new RegExp(`^spell${spellNum}[a-z]?$`).test(n)) score += 80; // Spell1A, Spell1B
+        else if (n.startsWith(`spell${spellNum}`)) score += 40;
+
+        // Phạt các biến thể hướng/vị trí (east/north/south/west, _90, _180...)
+        if (/_(east|north|south|west|left|right|top|bottom)$/.test(n)) score -= 25;
+        if (/_(-?\d+)$/.test(n)) score -= 25;
+        if (/variant|alt|copy/.test(n)) score -= 15;
+
+        // Ưu tiên clip dài hơn một chút (động tác đầy đủ hơn)
+        score += Math.min(5, (a.duration || 0) * 2);
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = a;
+        }
+      }
+
+      if (best) {
+        this.actions['spell' + slot] = this.mixer.clipAction(best);
+      }
+    });
+
     if (this.actions.idle) {
       this.currentAction = this.actions.idle;
       this.currentAction.play();
     }
+  }
+
+  // -------------------------------------------------------------------
+  // PHÁT ANIMATION KHI TUNG CHIÊU
+  // Trả về true nếu model có clip cho chiêu đó (để caller biết).
+  // -------------------------------------------------------------------
+  playSpellAnimation(slot) {
+    const act = this.actions && this.actions['spell' + slot];
+    if (!this.mixer || !act) return false;
+
+    const prev = this.currentAction;
+    act.reset();
+    act.setLoop(THREE.LoopOnce, 1);
+    act.clampWhenFinished = true;
+    act.fadeIn(0.06).play();
+    this.currentAction = act;
+
+    const dur = Math.min(900, Math.max(250, (act.getClip().duration || 0.5) * 1000));
+    setTimeout(() => {
+      if (this.currentAction === act) {
+        act.fadeOut(0.15);
+        if (prev && prev !== act) {
+          prev.reset().fadeIn(0.15).play();
+          this.currentAction = prev;
+        } else if (this.actions.idle) {
+          this.actions.idle.reset().fadeIn(0.15).play();
+          this.currentAction = this.actions.idle;
+        }
+      }
+    }, dur);
+    return true;
   }
 
   playAttackAnimation() {
@@ -1220,11 +1578,17 @@ export class PlayerChampion {
   }
 
   loadModel(modelPath, scale = 1.05) {
+    // Ghi lại tướng đang được yêu cầu load. Nếu người chơi đổi tướng liên
+    // tục, các request cũ về tới muộn sẽ bị BỎ QUA thay vì gắn chồng lên nhau.
+    const requestId = (this._modelRequestId || 0) + 1;
+    this._modelRequestId = requestId;
+
     gltfLoader.load(modelPath, (gltf) => {
-      if (this.fallbackModel) {
-        this.mesh.remove(this.fallbackModel);
-        this.fallbackModel = null;
-      }
+      // Request lỗi thời -> không gắn vào mesh nữa
+      if (requestId !== this._modelRequestId) return;
+
+      // Dọn sạch model cũ trước khi gắn model mới
+      this.purgeModelObjects();
 
       this.modelRoot = gltf.scene;
       this.modelRoot.scale.set(scale, scale, scale);
@@ -1232,6 +1596,9 @@ export class PlayerChampion {
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
+          // Model Riot dùng KHR_materials_unlit -> trông bẹt. Chuyển sang
+          // material có phản ứng ánh sáng để nhân vật có khối như game thật.
+          applyLitMaterials(child);
         }
       });
 
@@ -1270,21 +1637,90 @@ export class PlayerChampion {
     this.healthBar.updateBar(this.hp, this.maxHp, this.mp, this.maxMp);
   }
 
+  // -------------------------------------------------------------------------
+  // ARAM: Hồi sinh theo công thức cấp độ + thời gian trận đấu (không dùng
+  // setTimeout cố định như trước). Người chơi chết -> hiện đồng hồ đếm ngược
+  // -> hồi sinh tại hồi máu căn cứ Đồng Minh (z = +100), đúng luật ARAM.
+  // -------------------------------------------------------------------------
   die() {
+    if (this.isDead) return;
     this.isDead = true;
-    this.mesh.visible = false;
+    this.deaths = (this.deaths || 0) + 1;
+
+    // Xóa mọi lệnh di chuyển / mục tiêu đang dở dang
+    this.targetPos = null;
+    this.autoAttackTarget = null;
+
+    // Tính thời gian hồi sinh theo đúng nhịp ARAM
+    const matchSeconds = (typeof window !== 'undefined' && window.aramMatch) ? window.aramMatch.elapsed : 0;
+    this.respawnTimer = getRespawnSeconds(this.level || 1, matchSeconds);
+    this.respawnTimerMax = this.respawnTimer;
+
+    // Chơi hiệu ứng chết
+    if (this.actions && this.actions.death) {
+      if (this.currentAction) this.currentAction.fadeOut(0.15);
+      this.actions.death.reset().fadeIn(0.15).play();
+    }
+
+    // Ẩn mô hình sau khi animation chết chạy xong
     setTimeout(() => {
-      this.isDead = false;
-      this.hp = this.maxHp;
-      this.mp = this.maxMp;
-      this.mesh.position.set(0, 0, 75);
-      this.mesh.visible = true;
+      if (this.isDead) this.mesh.visible = false;
+    }, 900);
+
+    if (typeof window !== 'undefined' && window.onPlayerDeath) {
+      window.onPlayerDeath(this.respawnTimer);
+    }
+  }
+
+  // Cập nhật đồng hồ hồi sinh (gọi mỗi frame trong update)
+  updateRespawn(delta) {
+    if (!this.isDead) return;
+    this.respawnTimer = Math.max(0, (this.respawnTimer || 0) - delta);
+
+    if (typeof window !== 'undefined' && window.onRespawnTick) {
+      window.onRespawnTick(this.respawnTimer);
+    }
+
+    if (this.respawnTimer <= 0) {
+      this.respawn();
+    }
+  }
+
+  // Hồi sinh tại căn cứ Đồng Minh với đầy máu/mana
+  respawn() {
+    this.isDead = false;
+    this.hp = this.maxHp;
+    this.mp = this.maxMp;
+    this.mesh.position.set(0, 0, 95); // Hồi sinh cạnh Nhà Chính Đồng Minh
+    this.mesh.visible = true;
+    this.targetPos = null;
+    this.autoAttackTarget = null;
+    this.attackCooldown = 0;
+
+    if (this.actions) {
+      if (this.actions.death) this.actions.death.stop();
+      if (this.actions.idle) {
+        this.currentAction = this.actions.idle;
+        this.currentAction.reset().fadeIn(0.2).play();
+      }
+    }
+
+    if (this.healthBar) {
       this.healthBar.updateBar(this.hp, this.maxHp, this.mp, this.maxMp);
-    }, 4000);
+    }
+
+    if (typeof window !== 'undefined' && window.onPlayerRespawn) {
+      window.onPlayerRespawn();
+    }
   }
 
   update(delta, time) {
-    if (this.isDead) return;
+    // ARAM: khi đã chết vẫn phải chạy đồng hồ hồi sinh (trước đây return sớm
+    // khiến người chơi không bao giờ hồi sinh đúng nhịp).
+    if (this.isDead) {
+      this.updateRespawn(delta);
+      return;
+    }
     this.attackCooldown = Math.max(0, this.attackCooldown - delta);
     // Hồi phục chuẩn LMHT (hpregen / mpregen mỗi 5s)
     const hpRegenRate = (this.hpregen || 5) / 5;
@@ -1371,7 +1807,9 @@ export class EnemyBot {
     this.armor = champData.armor;
     this.mr = champData.mr;
     this.movespeed = champData.movespeed;
-    this.speed = +(champData.speed * 0.55).toFixed(2);
+    // Bot địch di chuyển chậm hơn một chút (85%) để người chơi có thể kiting.
+    // champData.speed đã là tốc độ chuẩn LoL sau khi sửa quy đổi.
+    this.speed = +(champData.speed * 0.85).toFixed(3);
     this.attackCooldown = 0;
     this.attackCooldownMax = champData.attackCooldownMax;
 

@@ -11,13 +11,20 @@ const PORT = 3000;
 const MIME_TYPES = {
   '.html': 'text/html',
   '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
   '.css': 'text/css',
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.svg': 'image/svg+xml',
-  '.mp3': 'audio/mpeg'
+  '.mp3': 'audio/mpeg',
+  '.ogg': 'audio/ogg',
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.wasm': 'application/wasm',
+  '.ktx2': 'image/ktx2',
+  '.bin': 'application/octet-stream'
 };
 
 const server = http.createServer((req, res) => {
